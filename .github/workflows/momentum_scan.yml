@@ -1,0 +1,53 @@
+name: Momentum Rotation Strategy
+
+on:
+  schedule:
+    - cron: '30 3 21 * *'
+    - cron: '30 3 */2 * *'
+  workflow_dispatch:
+
+jobs:
+  momentum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pandas openpyxl numpy
+
+      - name: Determine mode based on date
+        id: mode
+        run: |
+          DAY=$(date +%d)
+          if [ "$DAY" = "21" ]; then
+            echo "run_mode=rebalance" >> $GITHUB_OUTPUT
+          else
+            echo "run_mode=check" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Momentum Strategy
+        run: python momentum_rotation.py ${{ steps.mode.outputs.run_mode }}
+
+      - name: Commit results back to repo
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data/
+          git commit -m "Momentum update $(date +'%Y-%m-%d %H:%M') - ${{ steps.mode.outputs.run_mode }}" || echo "No changes"
+          git pull --rebase origin main
+          git push
+
+      - name: Send results to Telegram
+        run: |
+          for f in data/momentum_portfolio_log.csv; do
+            if [ -f "$f" ]; then
+              curl -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+                   -F document=@"$f" \
+                   "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument"
+            fi
+          done
