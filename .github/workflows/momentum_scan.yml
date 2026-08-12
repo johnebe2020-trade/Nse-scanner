@@ -5,6 +5,15 @@ on:
     - cron: '30 3 21 * *'
     - cron: '30 3 */2 * *'
   workflow_dispatch:
+    inputs:
+      mode_override:
+        description: 'Force mode (leave blank for auto date-based)'
+        required: false
+        type: choice
+        options:
+          - auto
+          - rebalance
+          - check
 
 jobs:
   momentum:
@@ -23,11 +32,16 @@ jobs:
       - name: Determine mode based on date
         id: mode
         run: |
-          DAY=$(date +%d)
-          if [ "$DAY" = "21" ]; then
-            echo "run_mode=rebalance" >> $GITHUB_OUTPUT
+          OVERRIDE="${{ github.event.inputs.mode_override }}"
+          if [ "$OVERRIDE" = "rebalance" ] || [ "$OVERRIDE" = "check" ]; then
+            echo "run_mode=$OVERRIDE" >> $GITHUB_OUTPUT
           else
-            echo "run_mode=check" >> $GITHUB_OUTPUT
+            DAY=$(date +%d)
+            if [ "$DAY" = "21" ]; then
+              echo "run_mode=rebalance" >> $GITHUB_OUTPUT
+            else
+              echo "run_mode=check" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Run Momentum Strategy
