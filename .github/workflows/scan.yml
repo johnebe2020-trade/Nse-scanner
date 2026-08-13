@@ -2,7 +2,7 @@ name: Daily Stock Scan - All Strategies
 
 on:
   schedule:
-    - cron: '30 3 * * 1-5'
+    - cron: '0 5 * * 1-5'
   workflow_dispatch:
 
 jobs:
