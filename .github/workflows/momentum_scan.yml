@@ -3,7 +3,7 @@ name: Momentum Rotation Strategy
 on:
   schedule:
     - cron: '30 3 21 * *'
-    - cron: '30 3 */2 * *'
+    - cron: '0 5 */2 * *'
   workflow_dispatch:
     inputs:
       mode_override:
