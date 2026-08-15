@@ -10,7 +10,7 @@ os.makedirs("data", exist_ok=True)
 
 STOCK_LIST = [
 "HDFCBANK.NS","SBIN.NS","PERSISTENT.NS","COFORGE.NS","ASHOKLEY.NS","M&M.NS",
-"BEL.NS","COALINDIA.NS","TMPV.NS","RELIANCE.NS","TCS.NS","INFY.NS",
+"BEL.NS","COALINDIA.NS","TATAMOTORS.NS","RELIANCE.NS","TCS.NS","INFY.NS",
 "ICICIBANK.NS","AXISBANK.NS","KOTAKBANK.NS","LT.NS","BAJFINANCE.NS","BAJAJFINSV.NS",
 "MARUTI.NS","TITAN.NS","SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS",
 "NTPC.NS","POWERGRID.NS","ONGC.NS","BPCL.NS","IOC.NS","HINDALCO.NS","JSWSTEEL.NS",
@@ -36,6 +36,8 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 ENTRY_FILE = "data/swing_paper_entries.csv"
 LOG_FILE = "data/swing_paper_log.csv"
+CLOSED_FILE = "data/swing_paper_closed.csv"
+SUMMARY_FILE = "data/swing_portfolio_summary.csv"
 
 def fetch_data(symbol, retries=2):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -98,7 +100,7 @@ def resistance_levels(high, latest, lookback=60, window=5):
     return below, above
 
 def check_circuit_pattern(df, lookback_days=22):
-    close = df["Close"]; high = df["High"]; low = df["Low"]
+    close = df["Close"]
     today_close = float(close.iloc[-1])
     recent = df.tail(lookback_days).copy()
     recent["PrevClose"] = recent["Close"].shift(1)
@@ -217,28 +219,20 @@ def get_current_price(symbol):
     except Exception:
         return None
 
-def setup_entries(shortlist):
+def manage_positions(shortlist):
     if os.path.exists(ENTRY_FILE):
-        print("Entries already locked, loading existing.")
-        return pd.read_csv(ENTRY_FILE)
-    if shortlist is None or shortlist.empty:
-        return None
-    top = shortlist.sort_values("Profit%", ascending=False).head(TOP_N)
-    rows = [{"Symbol": r["Symbol"], "EntryDate": datetime.now().strftime("%Y-%m-%d %H:%M"),
-             "BuyPrice": r["BuyPrice"], "Target": r["Target"], "StopLoss": r["StopLoss"]}
-            for _, r in top.iterrows()]
-    df = pd.DataFrame(rows)
-    df.to_csv(ENTRY_FILE, index=False)
-    print("New entries locked.")
-    return df
+        entries = pd.read_csv(ENTRY_FILE)
+    else:
+        entries = pd.DataFrame(columns=["Symbol", "EntryDate", "BuyPrice", "Target", "StopLoss"])
 
-def run_paper_trade_check(entries):
-    if entries is None or entries.empty:
-        return
     today_rows = []
+    keep_rows = []
+
+    print(f"\n=== Checking {len(entries)} existing positions ===")
     for _, row in entries.iterrows():
         cur_price = get_current_price(row["Symbol"] + ".NS")
         if cur_price is None:
+            keep_rows.append(row.to_dict())
             continue
         pnl_pct = round((cur_price - row["BuyPrice"]) / row["BuyPrice"] * 100, 2)
         status = "HOLDING"
@@ -250,16 +244,70 @@ def run_paper_trade_check(entries):
             "StopLoss": row["StopLoss"], "PnL%": pnl_pct, "Status": status
         })
         print(f"{row['Symbol']:12s} Buy:{row['BuyPrice']:>9.2f} Now:{cur_price:>9.2f} P&L:{pnl_pct:>6.2f}% [{status}]")
+        if status == "HOLDING":
+            keep_rows.append(row.to_dict())
+
+    closed_today = [r for r in today_rows if r["Status"] != "HOLDING"]
+    if closed_today:
+        closed_df = pd.DataFrame(closed_today)
+        symbols_closed = closed_df["Symbol"].tolist()
+        print(f"\nClosed positions (hit Target/SL): {symbols_closed}")
+        if os.path.exists(CLOSED_FILE):
+            closed_df.to_csv(CLOSED_FILE, mode="a", header=False, index=False)
+        else:
+            closed_df.to_csv(CLOSED_FILE, index=False)
+
+    held_symbols = set(r["Symbol"] for r in keep_rows)
+    slots_needed = TOP_N - len(keep_rows)
+    new_entries = []
+    if slots_needed > 0 and shortlist is not None and not shortlist.empty:
+        candidates = shortlist[~shortlist["Symbol"].isin(held_symbols)].sort_values("Profit%", ascending=False).head(slots_needed)
+        for _, r in candidates.iterrows():
+            new_entries.append({
+                "Symbol": r["Symbol"], "EntryDate": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "BuyPrice": r["BuyPrice"], "Target": r["Target"], "StopLoss": r["StopLoss"]
+            })
+            today_rows.append({
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Symbol": r["Symbol"],
+                "BuyPrice": r["BuyPrice"], "CurrentPrice": r["BuyPrice"], "Target": r["Target"],
+                "StopLoss": r["StopLoss"], "PnL%": 0.0, "Status": "HOLDING"
+            })
+            print(f"  NEW ENTRY: {r['Symbol']} @ {r['BuyPrice']} (replacing closed slot)")
+
+    final_entries = pd.DataFrame(keep_rows + new_entries)
+    final_entries.to_csv(ENTRY_FILE, index=False)
+
     log_df = pd.DataFrame(today_rows)
-    if log_df.empty:
-        return
-    if os.path.exists(LOG_FILE):
-        log_df.to_csv(LOG_FILE, mode="a", header=False, index=False)
+    if not log_df.empty:
+        if os.path.exists(LOG_FILE):
+            log_df.to_csv(LOG_FILE, mode="a", header=False, index=False)
+        else:
+            log_df.to_csv(LOG_FILE, index=False)
+
+    open_rows = log_df[log_df["Status"] == "HOLDING"] if not log_df.empty else pd.DataFrame()
+    total_invested = open_rows["BuyPrice"].sum() if not open_rows.empty else 0
+    total_current_value = open_rows["CurrentPrice"].sum() if not open_rows.empty else 0
+    overall_pnl_pct = round((total_current_value - total_invested) / total_invested * 100, 2) if total_invested > 0 else 0
+
+    print(f"\n=== SWING PORTFOLIO SUMMARY ===")
+    print(f"Total Entry Value: {total_invested:.2f} | Current Value: {total_current_value:.2f} | Overall P&L: {overall_pnl_pct}%")
+    print(f"Holdings: {len(open_rows)} | Target Hit Today: {len(closed_today) and len([r for r in closed_today if r['Status']=='TARGET HIT'])} | SL Hit Today: {len(closed_today) and len([r for r in closed_today if r['Status']=='SL HIT'])}")
+
+    summary_row = pd.DataFrame([{
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "TotalEntryValue": round(total_invested, 2),
+        "TotalCurrentValue": round(total_current_value, 2),
+        "OverallPnL%": overall_pnl_pct,
+        "StocksHolding": len(open_rows),
+        "StocksTargetHitToday": len([r for r in closed_today if r["Status"] == "TARGET HIT"]),
+        "StocksSLHitToday": len([r for r in closed_today if r["Status"] == "SL HIT"]),
+    }])
+    if os.path.exists(SUMMARY_FILE):
+        summary_row.to_csv(SUMMARY_FILE, mode="a", header=False, index=False)
     else:
-        log_df.to_csv(LOG_FILE, index=False)
+        summary_row.to_csv(SUMMARY_FILE, index=False)
 
 if __name__ == "__main__":
     print("=== SWING SCANNER ===")
     shortlist = run_scan()
-    entries = setup_entries(shortlist)
-    run_paper_trade_check(entries)
+    manage_positions(shortlist)
