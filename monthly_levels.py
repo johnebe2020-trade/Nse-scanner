@@ -11,6 +11,8 @@ BREAKOUT_TARGET_RATIO = 1.5
 TOP_N = 5
 ENTRY_FILE = "data/monthlylevels_paper_entries.csv"
 LOG_FILE = "data/monthlylevels_paper_log.csv"
+CLOSED_FILE = "data/monthlylevels_paper_closed.csv"
+SUMMARY_FILE = "data/monthlylevels_portfolio_summary.csv"
 
 STOCK_LIST = [
 "HDFCBANK.NS","SBIN.NS","PERSISTENT.NS","COFORGE.NS","ASHOKLEY.NS","M&M.NS",
@@ -137,50 +139,94 @@ def run_scan():
     print(f"BUY signals: {len(buy_signals)}")
     return buy_signals
 
-def setup_entries(buy_signals):
+def manage_positions(buy_signals):
     if os.path.exists(ENTRY_FILE):
-        return pd.read_csv(ENTRY_FILE)
-    if buy_signals is None or buy_signals.empty:
-        return None
-    top = buy_signals.head(TOP_N)
-    rows = []
-    for _, r in top.iterrows():
-        if pd.isna(r["Entry"]) or pd.isna(r["Target"]) or pd.isna(r["StopLoss"]):
-            continue
-        rows.append({"Symbol": r["Symbol"], "EntryDate": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                      "Signal": r["Signal"], "BuyPrice": r["Entry"], "Target": r["Target"], "StopLoss": r["StopLoss"]})
-    if not rows:
-        return None
-    df = pd.DataFrame(rows)
-    df.to_csv(ENTRY_FILE, index=False)
-    return df
+        entries = pd.read_csv(ENTRY_FILE)
+    else:
+        entries = pd.DataFrame(columns=["Symbol", "EntryDate", "Signal", "BuyPrice", "Target", "StopLoss"])
 
-def run_paper_trade_check(entries):
-    if entries is None or entries.empty:
-        return
     today_rows = []
+    keep_rows = []
+
+    print(f"\n=== Checking {len(entries)} existing positions ===")
     for _, row in entries.iterrows():
         cur_price = get_current_price(row["Symbol"] + ".NS")
         if cur_price is None:
+            keep_rows.append(row.to_dict())
             continue
         pnl_pct = round((cur_price - row["BuyPrice"]) / row["BuyPrice"] * 100, 2)
         status = "HOLDING"
         if cur_price >= row["Target"]: status = "TARGET HIT"
         elif cur_price <= row["StopLoss"]: status = "SL HIT"
-        today_rows.append({"Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Symbol": row["Symbol"],
-                            "Signal": row["Signal"], "BuyPrice": row["BuyPrice"], "CurrentPrice": cur_price,
-                            "Target": row["Target"], "StopLoss": row["StopLoss"], "PnL%": pnl_pct, "Status": status})
+        today_rows.append({
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Symbol": row["Symbol"], "Signal": row.get("Signal", ""),
+            "BuyPrice": row["BuyPrice"], "CurrentPrice": cur_price, "Target": row["Target"],
+            "StopLoss": row["StopLoss"], "PnL%": pnl_pct, "Status": status
+        })
         print(f"{row['Symbol']:12s} Buy:{row['BuyPrice']:>9.2f} Now:{cur_price:>9.2f} P&L:{pnl_pct:>6.2f}% [{status}]")
+        if status == "HOLDING":
+            keep_rows.append(row.to_dict())
+
+    closed_today = [r for r in today_rows if r["Status"] != "HOLDING"]
+    if closed_today:
+        closed_df = pd.DataFrame(closed_today)
+        symbols_closed = closed_df["Symbol"].tolist()
+        print(f"\nClosed positions (hit Target/SL): {symbols_closed}")
+        if os.path.exists(CLOSED_FILE):
+            closed_df.to_csv(CLOSED_FILE, mode="a", header=False, index=False)
+        else:
+            closed_df.to_csv(CLOSED_FILE, index=False)
+
+    held_symbols = set(r["Symbol"] for r in keep_rows)
+    slots_needed = TOP_N - len(keep_rows)
+    new_entries = []
+    if slots_needed > 0 and buy_signals is not None and not buy_signals.empty:
+        candidates_pool = buy_signals[~buy_signals["Symbol"].isin(held_symbols)].dropna(subset=["Entry", "Target", "StopLoss"]).head(slots_needed)
+        for _, r in candidates_pool.iterrows():
+            new_entries.append({
+                "Symbol": r["Symbol"], "EntryDate": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Signal": r["Signal"], "BuyPrice": r["Entry"], "Target": r["Target"], "StopLoss": r["StopLoss"]
+            })
+            today_rows.append({
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"), "Symbol": r["Symbol"], "Signal": r["Signal"],
+                "BuyPrice": r["Entry"], "CurrentPrice": r["Entry"], "Target": r["Target"],
+                "StopLoss": r["StopLoss"], "PnL%": 0.0, "Status": "HOLDING"
+            })
+            print(f"  NEW ENTRY: {r['Symbol']} @ {r['Entry']} (replacing closed slot)")
+
+    final_entries = pd.DataFrame(keep_rows + new_entries)
+    final_entries.to_csv(ENTRY_FILE, index=False)
+
     log_df = pd.DataFrame(today_rows)
-    if log_df.empty:
-        return
-    if os.path.exists(LOG_FILE):
-        log_df.to_csv(LOG_FILE, mode="a", header=False, index=False)
+    if not log_df.empty:
+        if os.path.exists(LOG_FILE):
+            log_df.to_csv(LOG_FILE, mode="a", header=False, index=False)
+        else:
+            log_df.to_csv(LOG_FILE, index=False)
+
+    open_rows = log_df[log_df["Status"] == "HOLDING"] if not log_df.empty else pd.DataFrame()
+    total_invested = open_rows["BuyPrice"].sum() if not open_rows.empty else 0
+    total_current_value = open_rows["CurrentPrice"].sum() if not open_rows.empty else 0
+    overall_pnl_pct = round((total_current_value - total_invested) / total_invested * 100, 2) if total_invested > 0 else 0
+
+    print(f"\n=== MONTHLY LEVELS PORTFOLIO SUMMARY ===")
+    print(f"Total Entry Value: {total_invested:.2f} | Current Value: {total_current_value:.2f} | Overall P&L: {overall_pnl_pct}%")
+
+    summary_row = pd.DataFrame([{
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "TotalEntryValue": round(total_invested, 2),
+        "TotalCurrentValue": round(total_current_value, 2),
+        "OverallPnL%": overall_pnl_pct,
+        "StocksHolding": len(open_rows),
+        "StocksTargetHitToday": len([r for r in closed_today if r["Status"] == "TARGET HIT"]),
+        "StocksSLHitToday": len([r for r in closed_today if r["Status"] == "SL HIT"]),
+    }])
+    if os.path.exists(SUMMARY_FILE):
+        summary_row.to_csv(SUMMARY_FILE, mode="a", header=False, index=False)
     else:
-        log_df.to_csv(LOG_FILE, index=False)
+        summary_row.to_csv(SUMMARY_FILE, index=False)
 
 if __name__ == "__main__":
     print("=== MONTHLY LEVELS SCANNER ===")
     buy_signals = run_scan()
-    entries = setup_entries(buy_signals)
-    run_paper_trade_check(entries)
+    manage_positions(buy_signals)
