@@ -2,9 +2,7 @@ name: Quality Portfolio Monitor
 
 on:
   schedule:
-    # Daily circuit breaker check - 4:00 PM IST (10:30 UTC), after market close
     - cron: '30 10 * * 1-5'
-    # Weekly fundamental re-screen - Sunday 8:00 AM IST (2:30 UTC)
     - cron: '30 2 * * 0'
   workflow_dispatch:
 
@@ -13,49 +11,31 @@ jobs:
     if: github.event.schedule == '30 10 * * 1-5' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install requests pandas
-
-      - name: Run circuit breaker check
-        env:
+      - run: pip install requests pandas
+      - env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python circuit_breaker.py
 
   fundamental-rescreen:
-    if: github.event.schedule == '30 2 * * 0'
+    if: github.event.schedule == '30 2 * * 0' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install requests beautifulsoup4 pandas
-
-      - name: Run fundamental screener
-        run: python fundamental_screener.py
-
-      - name: Run portfolio review
-        run: python quality_holdings.py
-
-      - name: Commit updated CSVs back to repo
-        run: |
+      - run: pip install requests beautifulsoup4 pandas
+      - run: python fundamental_screener.py
+      - run: python quality_holdings.py
+      - run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add fundamental_screen_all.csv fundamental_screen_quality_pass.csv portfolio_holdings.csv
-          git diff --staged --quiet || git commit -m "Weekly fundamental re-screen update"
+          git diff --staged --quiet || git commit -m "Fundamental re-screen update"
           git pull --rebase
           git push
