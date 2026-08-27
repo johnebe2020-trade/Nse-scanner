@@ -1,0 +1,36 @@
+name: Support Bounce Scanner
+
+on:
+  schedule:
+    # 4:00 PM IST = 10:30 UTC, weekdays only.
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy
+
+      - name: Run scanner
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python support_bounce_scanner_free.py
+
+      - name: Commit results CSV back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add support_bounce_*.csv
+          git diff --cached --quiet || git commit -m "Support bounce scan $(date +'%Y-%m-%d %H:%M')"
+          git push
