@@ -413,6 +413,7 @@ print("Candidates:", len(results))
 if not results:
     print()
     print("No support bounce candidates.")
+    send_telegram(f"📊 Support Bounce Scan — {datetime.now().strftime('%d %b %Y')}: no candidates today.")
 else:
     df = pd.DataFrame(results)
     df = df.sort_values("Score", ascending=False)
@@ -457,8 +458,6 @@ else:
             f"₹{row['Price']} | Entry {row['Entry']} | SL {row['SL']}"
         )
     send_telegram("\n".join(lines))
-else:
-    send_telegram(f"📊 Support Bounce Scan — {datetime.now().strftime('%d %b %Y')}: no candidates today.")
 
 print()
 print("=" * 55)
