@@ -5,22 +5,32 @@ on:
     workflows: ["Support Bounce Scanner"]
     types:
       - completed
+  workflow_dispatch: {}   # lets you trigger it manually to test
 
 jobs:
   track:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install requests pandas numpy
-      - env:
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy
+
+      - name: Run paper portfolio tracker
+        env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python paper_portfolio_tracker.py
-      - run: |
+
+      - name: Commit portfolio CSV back to repo
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add paper_portfolio.csv
