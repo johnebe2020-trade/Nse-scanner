@@ -1,0 +1,38 @@
+name: Deep Paper Portfolio Tracker
+
+on:
+  workflow_run:
+    workflows: ["Deep Support Bounce Scanner"]
+    types:
+      - completed
+  workflow_dispatch: {}   # lets you trigger it manually to test
+
+jobs:
+  track:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy
+
+      - name: Run deep paper portfolio tracker
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python deep_paper_portfolio_tracker.py
+
+      - name: Commit portfolio CSV back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deep_paper_portfolio.csv
+          git diff --cached --quiet || git commit -m "Deep paper portfolio update $(date +'%Y-%m-%d %H:%M')"
+          git push
