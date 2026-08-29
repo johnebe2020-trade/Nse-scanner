@@ -28,4 +28,9 @@ jobs:
         run: python deep_support_bounce_scanner.py
 
       - name: Commit results CSV back to repo
-        run: | git config user.name "github-actions[bot]" git config user.email "github-actions[bot]@users.noreply.github.com" git add deep_support_bounce_*.csv git diff --cached --quiet || git commit -m "Deep support bounce scan $(date +'%Y-%m-%d %H:%M')" git push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deep_support_bounce_*.csv
+          git diff --cached --quiet || git commit -m "Deep support bounce scan $(date +'%Y-%m-%d %H:%M')"
+          git push
