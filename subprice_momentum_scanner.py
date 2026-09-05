@@ -75,6 +75,7 @@ REBALANCE_DAYS = 30
 
 PORTFOLIO_FILE = "subprice_momentum_portfolio.csv"
 LOG_FILE = "subprice_momentum_log.csv"
+RANKING_FILE = "subprice_momentum_ranking.csv"
 
 # ---------------- DATA FETCH ----------------
 def fetch_yahoo_data(symbol, range_period="3mo", interval="1d"):
@@ -186,8 +187,21 @@ def log_daily_snapshot(portfolio_df, universe_data):
             pass
         log_row.to_csv(LOG_FILE, index=False)
 
+def ensure_files_exist():
+    """Create empty placeholder files if they don't exist yet, so git add
+    never fails on a missing file even if this run finds nothing."""
+    import os
+    if not os.path.exists(RANKING_FILE):
+        pd.DataFrame(columns=["symbol", "price", "roc_pct", "vol_surge", "score", "market_cap_cr"]).to_csv(RANKING_FILE, index=False)
+    if not os.path.exists(PORTFOLIO_FILE):
+        pd.DataFrame(columns=["symbol", "entry_date", "entry_price", "score_at_entry", "status"]).to_csv(PORTFOLIO_FILE, index=False)
+    if not os.path.exists(LOG_FILE):
+        pd.DataFrame(columns=["date", "total_entry", "total_current", "pnl_pct", "stocks_held"]).to_csv(LOG_FILE, index=False)
+
 # ---------------- MAIN ----------------
 def run_scanner():
+    ensure_files_exist()
+
     print(f"Scanning {len(STOCK_LIST)} mid/small/microcap stocks...\n")
     universe_data = {}
     candidates = []
@@ -225,11 +239,12 @@ def run_scanner():
     candidates_df = pd.DataFrame(candidates)
     if candidates_df.empty:
         print("\nNo candidates found under Rs 250 with sufficient data.")
+        pd.DataFrame(columns=["symbol", "price", "roc_pct", "vol_surge", "score", "market_cap_cr"]).to_csv(RANKING_FILE, index=False)
         return
 
     candidates_df = candidates_df.sort_values("score", ascending=False)
-    candidates_df.to_csv("subprice_momentum_ranking.csv", index=False)
-    print(f"\nSaved: subprice_momentum_ranking.csv ({len(candidates_df)} candidates)")
+    candidates_df.to_csv(RANKING_FILE, index=False)
+    print(f"\nSaved: {RANKING_FILE} ({len(candidates_df)} candidates)")
 
     # ---------------- PORTFOLIO / REBALANCE LOGIC ----------------
     portfolio_df = load_portfolio()
@@ -285,4 +300,3 @@ def run_scanner():
 
 if __name__ == "__main__":
     run_scanner()
-
