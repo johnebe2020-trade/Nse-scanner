@@ -2,7 +2,7 @@
 micro_cap_scanner.py
 Runs after market close (4PM IST) via GitHub Actions.
 
-Flags micro/small-cap stocks showing:
+Flags micro/small/mid-cap stocks showing:
  1. HH/HL structure forming
  2. Volume surge (confirmed or expected)
  3. Bounce from strong support
@@ -10,6 +10,10 @@ Flags micro/small-cap stocks showing:
 
 Data source: Yahoo Finance v8/finance/chart (direct, no yfinance lib —
 avoids curl_cffi compile issues, consistent with other scanners in this repo)
+
+Stock universe: reads official NSE index constituent files if present
+(ind_niftymidcap150list.csv, ind_niftysmallcap250list.csv), falls back
+to a manually curated CSV, then to a hardcoded list.
 """
 
 import requests
@@ -27,7 +31,7 @@ VOL_DRYUP_LOOKBACK = 15      # bars to check for 5d-avg vol at multi-week low
 SUPPORT_TOUCH_TOLERANCE = 0.015   # 1.5% band to count as "touching" a level
 SUPPORT_MIN_TOUCHES = 2
 DEMAND_ZONE_PROXIMITY = 0.04      # within 4% above zone top = "approaching"
-STOCK_LIST_CSV = "microcap_universe.csv"   # optional: column named "symbol"
+STOCK_LIST_CSV = "microcap_universe.csv"   # optional manually curated fallback
 OUTPUT_CSV = f"scan_results_{datetime.now().strftime('%Y%m%d')}.csv"
 MIN_SCORE_ALERT = 2          # only send stocks scoring >= this to Telegram
 
@@ -37,28 +41,47 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Fallback list — micro + small cap. Used only if microcap_universe.csv
-# is not found in the repo. Edit freely, or replace with a CSV for full control.
+# Official NSE index constituent files — upload these to the repo root as-is
+NSE_INDEX_FILES = [
+    "ind_niftymidcap150list.csv",
+    "ind_niftysmallcap250list.csv",
+]
+
+# Last-resort fallback if no CSV files are found at all
 DEFAULT_STOCK_LIST = [
-    # Micro caps
     "RVNL.NS", "IRFC.NS", "SUZLON.NS", "YESBANK.NS", "IDEA.NS",
     "SOUTHBANK.NS", "PNB.NS", "IOB.NS", "UCOBANK.NS", "CENTRALBK.NS",
     "TTML.NS", "RPOWER.NS", "JPPOWER.NS", "IFCI.NS", "NHPC.NS",
     "SJVN.NS", "GMRINFRA.NS", "HUDCO.NS", "IRCON.NS", "RITES.NS",
     "MAZDOCK.NS", "COCHINSHIP.NS", "GRSE.NS", "BEML.NS",
-    # Small caps
     "BHEL.NS", "SAIL.NS", "NATIONALUM.NS", "HINDCOPPER.NS", "MOIL.NS",
     "NMDC.NS", "RAILTEL.NS", "RCF.NS", "FACT.NS", "GNFC.NS",
-    "GSFC.NS", "NFL.NS", "BALRAMCHIN.NS", "TRIVENI.NS",
-    "DCMSHRIRAM.NS", "SHYAMMETL.NS", "JINDALSAW.NS", "RATNAMANI.NS",
-    "WELCORP.NS", "APLAPOLLO.NS", "SURYAROSNI.NS", "KIRLOSENG.NS",
-    "GRAPHITE.NS", "HEG.NS", "CENTURYPLY.NS", "GREENPANEL.NS",
-    "ORIENTCEM.NS", "JKCEMENT.NS", "HEIDELBERG.NS", "PRSMJOHNSN.NS",
 ]
 
 
 # ---------------- STOCK LIST ----------------
 def load_stock_list():
+    symbols = []
+
+    # 1. Try official NSE index files first (as downloaded, unmodified)
+    for fname in NSE_INDEX_FILES:
+        if os.path.exists(fname):
+            try:
+                df = pd.read_csv(fname)
+                col = "Symbol" if "Symbol" in df.columns else df.columns[2]
+                syms = df[col].dropna().astype(str).str.strip().tolist()
+                syms = [s + ".NS" for s in syms if not s.endswith(".NS")]
+                symbols.extend(syms)
+                print(f"Loaded {len(syms)} symbols from {fname}")
+            except Exception as e:
+                print(f"Found {fname} but couldn't parse it: {e}")
+
+    if symbols:
+        symbols = sorted(set(symbols))  # dedupe in case a stock is in both files
+        print(f"Total combined universe: {len(symbols)} symbols")
+        return symbols
+
+    # 2. Fall back to a manually curated CSV, if present
     if os.path.exists(STOCK_LIST_CSV):
         try:
             symbols = pd.read_csv(STOCK_LIST_CSV)["symbol"].tolist()
@@ -66,8 +89,9 @@ def load_stock_list():
             return symbols
         except Exception as e:
             print(f"Found {STOCK_LIST_CSV} but couldn't read it ({e}); using default list.")
-    else:
-        print(f"{STOCK_LIST_CSV} not found — using hardcoded DEFAULT_STOCK_LIST ({len(DEFAULT_STOCK_LIST)} symbols).")
+
+    # 3. Last resort: hardcoded list
+    print(f"No stock list files found — using hardcoded DEFAULT_STOCK_LIST ({len(DEFAULT_STOCK_LIST)} symbols).")
     return DEFAULT_STOCK_LIST
 
 
@@ -339,7 +363,7 @@ def run_scan():
 
     if not results:
         print("No matches today.")
-        send_telegram_message("Micro/Small-cap scan: no setups found today.")
+        send_telegram_message("Micro/Small/Mid-cap scan: no setups found today.")
         return
 
     out = pd.DataFrame(results).sort_values("score", ascending=False)
@@ -355,7 +379,7 @@ def run_scan():
         return
 
     table_text = build_table_text(alert_df)
-    header = f"Micro/Small-cap Scan — {datetime.now().strftime('%d-%b-%Y')}\n\n"
+    header = f"Micro/Small/Mid-cap Scan — {datetime.now().strftime('%d-%b-%Y')}\n\n"
     send_telegram_message(header + table_text)
 
 
