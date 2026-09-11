@@ -5,8 +5,8 @@ Runs after market close (4PM IST) via GitHub Actions.
 Flags micro/small/mid-cap stocks showing:
  1. HH/HL structure forming
  2. Volume surge (confirmed or expected)
- 3. Bounce from strong support
- 4. Approaching a demand zone
+ 3. Bounce from strong support -> Entry/SL/Targets calculated
+ 4. Approaching a demand zone -> Entry/SL/Targets calculated
 
 Data source: Yahoo Finance v8/finance/chart (direct, no yfinance lib —
 avoids curl_cffi compile issues, consistent with other scanners in this repo)
@@ -14,6 +14,9 @@ avoids curl_cffi compile issues, consistent with other scanners in this repo)
 Stock universe: reads official NSE index constituent files if present
 (ind_niftymidcap150list.csv, ind_niftysmallcap250list.csv), falls back
 to a manually curated CSV, then to a hardcoded list.
+
+Output: scan_results_YYYYMMDD.csv committed back to the repo by the
+GitHub Actions workflow (same pattern as your other scanners).
 """
 
 import requests
@@ -24,16 +27,21 @@ import os
 from datetime import datetime
 
 # ---------------- CONFIG ----------------
-LOOKBACK_DAYS = 120          # history pulled per stock
-PIVOT_WINDOW = 3             # bars each side for swing high/low detection
-VOL_SURGE_MULT = 2.0         # today's vol >= this x 20d avg -> confirmed surge
-VOL_DRYUP_LOOKBACK = 15      # bars to check for 5d-avg vol at multi-week low
-SUPPORT_TOUCH_TOLERANCE = 0.015   # 1.5% band to count as "touching" a level
+LOOKBACK_DAYS = 120
+PIVOT_WINDOW = 3
+VOL_SURGE_MULT = 2.0
+VOL_DRYUP_LOOKBACK = 15
+SUPPORT_TOUCH_TOLERANCE = 0.015
 SUPPORT_MIN_TOUCHES = 2
-DEMAND_ZONE_PROXIMITY = 0.04      # within 4% above zone top = "approaching"
-STOCK_LIST_CSV = "microcap_universe.csv"   # optional manually curated fallback
+DEMAND_ZONE_PROXIMITY = 0.04
+STOCK_LIST_CSV = "microcap_universe.csv"
 OUTPUT_CSV = f"scan_results_{datetime.now().strftime('%Y%m%d')}.csv"
-MIN_SCORE_ALERT = 2          # only send stocks scoring >= this to Telegram
+MIN_SCORE_ALERT = 2
+
+# Trade level calculation
+SL_BUFFER_PCT = 0.015        # SL placed 1.5% below support / below demand zone bottom
+ENTRY_ZONE_PCT = 0.008       # entry range = level to level*(1+this)
+RR_MULTIPLES = [1.5, 2.5, 4.0]   # fallback target R-multiples if no resistance found
 
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -41,13 +49,11 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-# Official NSE index constituent files — upload these to the repo root as-is
 NSE_INDEX_FILES = [
     "ind_niftymidcap150list.csv",
     "ind_niftysmallcap250list.csv",
 ]
 
-# Last-resort fallback if no CSV files are found at all
 DEFAULT_STOCK_LIST = [
     "RVNL.NS", "IRFC.NS", "SUZLON.NS", "YESBANK.NS", "IDEA.NS",
     "SOUTHBANK.NS", "PNB.NS", "IOB.NS", "UCOBANK.NS", "CENTRALBK.NS",
@@ -62,8 +68,6 @@ DEFAULT_STOCK_LIST = [
 # ---------------- STOCK LIST ----------------
 def load_stock_list():
     symbols = []
-
-    # 1. Try official NSE index files first (as downloaded, unmodified)
     for fname in NSE_INDEX_FILES:
         if os.path.exists(fname):
             try:
@@ -77,11 +81,10 @@ def load_stock_list():
                 print(f"Found {fname} but couldn't parse it: {e}")
 
     if symbols:
-        symbols = sorted(set(symbols))  # dedupe in case a stock is in both files
+        symbols = sorted(set(symbols))
         print(f"Total combined universe: {len(symbols)} symbols")
         return symbols
 
-    # 2. Fall back to a manually curated CSV, if present
     if os.path.exists(STOCK_LIST_CSV):
         try:
             symbols = pd.read_csv(STOCK_LIST_CSV)["symbol"].tolist()
@@ -90,18 +93,13 @@ def load_stock_list():
         except Exception as e:
             print(f"Found {STOCK_LIST_CSV} but couldn't read it ({e}); using default list.")
 
-    # 3. Last resort: hardcoded list
     print(f"No stock list files found — using hardcoded DEFAULT_STOCK_LIST ({len(DEFAULT_STOCK_LIST)} symbols).")
     return DEFAULT_STOCK_LIST
 
 
 # ---------------- DATA FETCH ----------------
 def fetch_daily_data(symbol, days=LOOKBACK_DAYS):
-    params = {
-        "range": f"{days}d",
-        "interval": "1d",
-        "includePrePost": "false"
-    }
+    params = {"range": f"{days}d", "interval": "1d", "includePrePost": "false"}
     try:
         r = requests.get(YAHOO_URL.format(symbol=symbol), params=params,
                           headers=HEADERS, timeout=10)
@@ -112,11 +110,8 @@ def fetch_daily_data(symbol, days=LOOKBACK_DAYS):
 
         df = pd.DataFrame({
             "date": pd.to_datetime(ts, unit="s"),
-            "open": q["open"],
-            "high": q["high"],
-            "low": q["low"],
-            "close": q["close"],
-            "volume": q["volume"],
+            "open": q["open"], "high": q["high"], "low": q["low"],
+            "close": q["close"], "volume": q["volume"],
         }).dropna()
 
         return df.reset_index(drop=True)
@@ -161,7 +156,6 @@ def check_volume_surge(df):
     avg20 = df["volume"].iloc[-21:-1].mean()
     today_vol = df["volume"].iloc[-1]
     vol_ratio = today_vol / avg20 if avg20 > 0 else 0
-
     confirmed = vol_ratio >= VOL_SURGE_MULT
 
     df = df.copy()
@@ -207,12 +201,12 @@ def find_support_levels(df, tolerance=SUPPORT_TOUCH_TOLERANCE, min_touches=SUPPO
 def check_support_bounce(df):
     levels = find_support_levels(df)
     if not levels:
-        return False, None
+        return False, None, None
 
     today = df.iloc[-1]
     candle_range = today["high"] - today["low"]
     if candle_range == 0:
-        return False, None
+        return False, None, None
 
     is_bullish = today["close"] > today["open"]
     closed_upper_half = (today["close"] - today["low"]) / candle_range >= 0.5
@@ -220,9 +214,9 @@ def check_support_bounce(df):
     for lvl in levels:
         touched = abs(today["low"] - lvl) / lvl <= SUPPORT_TOUCH_TOLERANCE
         if touched and is_bullish and closed_upper_half:
-            return True, f"Bounced from support @ {lvl:.2f} (touches: strong level)"
+            return True, f"Bounced from support @ {lvl:.2f} (touches: strong level)", lvl
 
-    return False, None
+    return False, None, None
 
 
 # ---------------- 4. DEMAND ZONE PROXIMITY ----------------
@@ -244,31 +238,57 @@ def find_demand_zones(df, base_max_bars=5, min_rally_pct=0.08):
                 continue
             move_pct = (post["close"].iloc[-1] - base["close"].iloc[-1]) / base["close"].iloc[-1]
             if move_pct >= min_rally_pct:
-                zones.append({
-                    "top": base["high"].max(),
-                    "bottom": base["low"].min(),
-                    "idx": i
-                })
+                zones.append({"top": base["high"].max(), "bottom": base["low"].min(), "idx": i})
     return zones
 
 
 def check_demand_zone_approach(df):
     zones = find_demand_zones(df)
     if not zones:
-        return False, None
+        return False, None, None
 
     current_price = df["close"].iloc[-1]
     zones_below = [z for z in zones if z["top"] < current_price]
     if not zones_below:
-        return False, None
+        return False, None, None
 
     nearest = max(zones_below, key=lambda z: z["idx"])
     dist_pct = (current_price - nearest["top"]) / nearest["top"]
 
     if 0 <= dist_pct <= DEMAND_ZONE_PROXIMITY:
-        return True, f"Approaching demand zone {nearest['bottom']:.2f}-{nearest['top']:.2f} ({dist_pct*100:.1f}% away)"
+        detail = f"Approaching demand zone {nearest['bottom']:.2f}-{nearest['top']:.2f} ({dist_pct*100:.1f}% away)"
+        return True, detail, nearest
 
-    return False, None
+    return False, None, None
+
+
+# ---------------- TRADE LEVELS (Entry / SL / Targets) ----------------
+def calculate_trade_levels(df, base_level, current_price):
+    """
+    base_level: the support price or demand-zone top to anchor entry/SL off.
+    Targets are pulled from real resistance (swing highs above base_level);
+    falls back to R-multiples of risk if fewer than 3 resistances found.
+    """
+    entry_low = round(base_level, 2)
+    entry_high = round(base_level * (1 + ENTRY_ZONE_PCT), 2)
+    sl = round(base_level * (1 - SL_BUFFER_PCT), 2)
+    risk = entry_low - sl
+
+    highs, _ = find_swing_points(df)
+    resistances = sorted(set(round(h[1], 2) for h in highs if h[1] > current_price))
+
+    targets = []
+    for r in resistances:
+        if len(targets) >= 3:
+            break
+        targets.append(r)
+
+    idx = len(targets)
+    while len(targets) < 3:
+        targets.append(round(entry_low + risk * RR_MULTIPLES[idx], 2))
+        idx += 1
+
+    return entry_low, entry_high, sl, targets[0], targets[1], targets[2]
 
 
 # ---------------- SCAN ----------------
@@ -279,44 +299,59 @@ def scan_stock(symbol):
 
     hh_hl, hh_hl_detail = check_hh_hl(df)
     vol_surge, vol_detail = check_volume_surge(df)
-    support_bounce, support_detail = check_support_bounce(df)
-    demand_zone, demand_detail = check_demand_zone_approach(df)
+    support_bounce, support_detail, support_level = check_support_bounce(df)
+    demand_zone, demand_detail, demand_zone_info = check_demand_zone_approach(df)
 
     score = sum([hh_hl, vol_surge, support_bounce, demand_zone])
     if score == 0:
         return None
 
+    current_price = df["close"].iloc[-1]
+
+    # Prioritize support bounce for trade levels; else use demand zone top
+    entry_low = entry_high = sl = t1 = t2 = t3 = None
+    setup_type = ""
+    if support_bounce and support_level is not None:
+        entry_low, entry_high, sl, t1, t2, t3 = calculate_trade_levels(df, support_level, current_price)
+        setup_type = "SUPPORT_BOUNCE"
+    elif demand_zone and demand_zone_info is not None:
+        entry_low, entry_high, sl, t1, t2, t3 = calculate_trade_levels(df, demand_zone_info["top"], current_price)
+        setup_type = "DEMAND_ZONE"
+
     return {
         "symbol": symbol,
-        "close": df["close"].iloc[-1],
+        "close": round(current_price, 2),
         "score": score,
         "hh_hl": hh_hl_detail if hh_hl else "",
         "vol_surge": vol_detail if vol_surge else "",
         "support_bounce": support_detail if support_bounce else "",
         "demand_zone": demand_detail if demand_zone else "",
+        "setup_type": setup_type,
+        "entry_low": entry_low,
+        "entry_high": entry_high,
+        "stop_loss": sl,
+        "target1": t1,
+        "target2": t2,
+        "target3": t3,
     }
 
 
 # ---------------- TABLE FORMAT ----------------
 def build_table_text(df):
-    """Fixed-width plain-text table for Telegram (monospace <pre> block)."""
-    headers = ["Symbol", "Close", "Score", "Tags"]
+    headers = ["Symbol", "Close", "Score", "Setup", "Entry", "SL", "T1", "T2", "T3"]
     rows = []
     for _, r in df.iterrows():
-        tags = []
-        if r["hh_hl"]:
-            tags.append("HH/HL")
-        if r["vol_surge"]:
-            tags.append("VOLc" if "CONFIRMED" in r["vol_surge"] else "VOLe")
-        if r["support_bounce"]:
-            tags.append("SUP")
-        if r["demand_zone"]:
-            tags.append("DEM")
+        entry_str = f"{r['entry_low']}-{r['entry_high']}" if pd.notna(r["entry_low"]) else "-"
         rows.append([
             r["symbol"].replace(".NS", ""),
             f"{r['close']:.2f}",
             str(r["score"]),
-            "+".join(tags)
+            r["setup_type"] if r["setup_type"] else "-",
+            entry_str,
+            str(r["stop_loss"]) if pd.notna(r["stop_loss"]) else "-",
+            str(r["target1"]) if pd.notna(r["target1"]) else "-",
+            str(r["target2"]) if pd.notna(r["target2"]) else "-",
+            str(r["target3"]) if pd.notna(r["target3"]) else "-",
         ])
 
     col_widths = [max(len(str(x)) for x in [h] + [row[i] for row in rows])
@@ -336,11 +371,7 @@ def send_telegram_message(text):
         print("[!] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set — skipping send.")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": f"<pre>{text}</pre>",
-        "parse_mode": "HTML"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": f"<pre>{text}</pre>", "parse_mode": "HTML"}
     try:
         r = requests.post(url, data=payload, timeout=10)
         if r.status_code != 200:
@@ -359,7 +390,7 @@ def run_scan():
         res = scan_stock(sym)
         if res:
             results.append(res)
-        time.sleep(0.3)   # be polite to Yahoo's endpoint
+        time.sleep(0.3)
 
     if not results:
         print("No matches today.")
