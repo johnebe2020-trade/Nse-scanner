@@ -15,8 +15,9 @@ Stock universe: reads official NSE index constituent files if present
 (ind_niftymidcap150list.csv, ind_niftysmallcap250list.csv), falls back
 to a manually curated CSV, then to a hardcoded list.
 
-Output: scan_results_YYYYMMDD.csv committed back to the repo by the
-GitHub Actions workflow (same pattern as your other scanners).
+Output: scan_results_YYYYMMDD.csv committed back to repo root by the
+GitHub Actions workflow. Telegram alerts are chunked to stay under
+Telegram's 4096-character message limit.
 """
 
 import requests
@@ -39,9 +40,13 @@ OUTPUT_CSV = f"scan_results_{datetime.now().strftime('%Y%m%d')}.csv"
 MIN_SCORE_ALERT = 2
 
 # Trade level calculation
-SL_BUFFER_PCT = 0.015        # SL placed 1.5% below support / below demand zone bottom
-ENTRY_ZONE_PCT = 0.008       # entry range = level to level*(1+this)
-RR_MULTIPLES = [1.5, 2.5, 4.0]   # fallback target R-multiples if no resistance found
+SL_BUFFER_PCT = 0.015
+ENTRY_ZONE_PCT = 0.008
+RR_MULTIPLES = [1.5, 2.5, 4.0]
+
+# Telegram message chunking (Telegram caps messages at 4096 chars)
+MAX_MSG_CHARS = 3800
+ROWS_PER_CHUNK = 25
 
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -264,11 +269,6 @@ def check_demand_zone_approach(df):
 
 # ---------------- TRADE LEVELS (Entry / SL / Targets) ----------------
 def calculate_trade_levels(df, base_level, current_price):
-    """
-    base_level: the support price or demand-zone top to anchor entry/SL off.
-    Targets are pulled from real resistance (swing highs above base_level);
-    falls back to R-multiples of risk if fewer than 3 resistances found.
-    """
     entry_low = round(base_level, 2)
     entry_high = round(base_level * (1 + ENTRY_ZONE_PCT), 2)
     sl = round(base_level * (1 - SL_BUFFER_PCT), 2)
@@ -308,7 +308,6 @@ def scan_stock(symbol):
 
     current_price = df["close"].iloc[-1]
 
-    # Prioritize support bounce for trade levels; else use demand zone top
     entry_low = entry_high = sl = t1 = t2 = t3 = None
     setup_type = ""
     if support_bounce and support_level is not None:
@@ -380,6 +379,25 @@ def send_telegram_message(text):
         print(f"[!] Telegram send error: {e}")
 
 
+def send_telegram_alerts(alert_df, header):
+    """Sends the alert table, splitting into chunks if it would exceed
+    Telegram's 4096-char message limit."""
+    full_text = header + build_table_text(alert_df)
+
+    if len(full_text) + 13 <= MAX_MSG_CHARS:   # +13 accounts for <pre></pre> tags
+        send_telegram_message(full_text)
+        return
+
+    total = len(alert_df)
+    print(f"\nAlert table too long ({total} rows) — splitting into chunks.")
+    for start in range(0, total, ROWS_PER_CHUNK):
+        chunk = alert_df.iloc[start:start + ROWS_PER_CHUNK]
+        end = min(start + ROWS_PER_CHUNK, total)
+        chunk_header = header + f"(rows {start+1}-{end} of {total})\n\n"
+        send_telegram_message(chunk_header + build_table_text(chunk))
+        time.sleep(1)   # avoid Telegram rate limits between chunk sends
+
+
 # ---------------- MAIN ----------------
 def run_scan():
     symbols = load_stock_list()
@@ -409,9 +427,8 @@ def run_scan():
         print(f"\nNo stocks met MIN_SCORE_ALERT={MIN_SCORE_ALERT}; not sending Telegram.")
         return
 
-    table_text = build_table_text(alert_df)
     header = f"Micro/Small/Mid-cap Scan — {datetime.now().strftime('%d-%b-%Y')}\n\n"
-    send_telegram_message(header + table_text)
+    send_telegram_alerts(alert_df, header)
 
 
 if __name__ == "__main__":
