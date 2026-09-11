@@ -1,0 +1,28 @@
+symbol,close,score,hh_hl,vol_surge,support_bounce,demand_zone
+SOUTHBANK.NS,46.31999969482422,3,HH: 47.04->48.44 | HL: 44.26->45.07,"EXPECTED (vol dried up to 15d low, watch for breakout)",Bounced from support @ 44.85 (touches: strong level),
+IOB.NS,33.0099983215332,2,,"EXPECTED (vol dried up to 15d low, watch for breakout)",Bounced from support @ 32.35 (touches: strong level),
+SAIL.NS,180.32000732421875,2,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,Approaching demand zone 173.02-177.00 (1.9% away)
+COCHINSHIP.NS,1385.5999755859375,2,HH: 1536.90->1577.90 | HL: 1435.00->1452.10,"CONFIRMED surge, 5.4x 20d avg",,
+DCMSHRIRAM.NS,1001.4000244140625,2,,"EXPECTED (vol dried up to 15d low, watch for breakout)",Bounced from support @ 988.90 (touches: strong level),
+NMDC.NS,82.93000030517578,2,HH: 87.19->89.10 | HL: 81.05->83.54,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+HINDCOPPER.NS,511.29998779296875,2,,,Bounced from support @ 511.37 (touches: strong level),Approaching demand zone 490.05-504.30 (1.4% away)
+BALRAMCHIN.NS,705.5999755859375,2,HH: 738.95->742.00 | HL: 636.80->638.60,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+IDEA.NS,15.029999732971191,1,HH: 14.31->15.37 | HL: 12.60->13.93,,,
+IRFC.NS,80.5199966430664,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+YESBANK.NS,23.190000534057617,1,,,Bounced from support @ 22.36 (touches: strong level),
+BEML.NS,2012.9000244140625,1,HH: 1984.00->2205.00 | HL: 1668.10->1902.60,,,
+NHPC.NS,76.68000030517578,1,,,Bounced from support @ 75.25 (touches: strong level),
+CENTRALBK.NS,30.719999313354492,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+IFCI.NS,81.83000183105469,1,HH: 84.19->107.50 | HL: 68.15->72.71,,,
+GNFC.NS,562.0999755859375,1,,,,Approaching demand zone 548.90-558.30 (0.7% away)
+RAILTEL.NS,258.6499938964844,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+TRIVENI.NS,259.6499938964844,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+SHYAMMETL.NS,1086.4000244140625,1,HH: 1004.80->1111.00 | HL: 970.00->1053.20,,,
+JINDALSAW.NS,313.1000061035156,1,HH: 281.00->319.50 | HL: 263.15->297.35,,,
+RATNAMANI.NS,2856.300048828125,1,HH: 2425.00->2843.90 | HL: 2278.60->2533.40,,,
+WELCORP.NS,2693.199951171875,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
+APLAPOLLO.NS,2153.10009765625,1,HH: 2278.40->2281.00 | HL: 2119.70->2136.50,,,
+SURYAROSNI.NS,215.74000549316406,1,,,Bounced from support @ 213.98 (touches: strong level),
+GRAPHITE.NS,822.9000244140625,1,HH: 748.50->755.50 | HL: 638.00->678.50,,,
+HEG.NS,237.1999969482422,1,HH: 749.00->753.90 | HL: 668.00->699.05,,,
+CENTURYPLY.NS,722.5,1,,"EXPECTED (vol dried up to 15d low, watch for breakout)",,
