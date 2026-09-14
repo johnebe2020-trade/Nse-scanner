@@ -4,15 +4,17 @@ Runs every 15 min during market hours via GitHub Actions.
 
 Watches the full micro/small/mid-cap universe for:
  1. Volume surge starting right now (day-so-far pace or a sudden last-bar spike)
- 2. Immediate bounce off a known daily support level
+ 2. Immediate bounce off a known daily support level -> Entry/SL/Targets calculated
 
-Support levels + 20-day avg volume are computed once per trading day
-(cached to intraday_cache/levels_YYYYMMDD.csv) then reused every cycle
-to avoid re-fetching 120 days of history 28 times a day.
+Support levels, resistance levels, and 20-day avg volume are computed
+once per trading day (cached to intraday_cache/levels_YYYYMMDD.csv)
+then reused every cycle to avoid re-fetching 120 days of history
+28 times a day.
 
-Alerts are sent to Telegram individually, as soon as they trigger.
-A same-day dedupe file (intraday_cache/alerted_YYYYMMDD.csv) stops
-repeat alerts for the same stock+signal within one day.
+Every new signal (deduped per stock+signal+day) is:
+ - sent to Telegram immediately
+ - appended to intraday_results_YYYYMMDD.csv (one file per day,
+   growing across all cron cycles, same column style as the EOD scanner)
 """
 
 import requests
@@ -49,6 +51,11 @@ INTRADAY_INTERVAL = "5m"
 BARS_PER_DAY = 75              # 375 trading minutes / 5-min bars
 INTRADAY_VOL_SURGE_MULT = 1.8  # day-so-far cumulative volume vs expected pace
 INTRADAY_SPIKE_MULT = 3.0      # last single 5-min bar vs expected per-bar volume
+
+# Trade level calculation (same logic as EOD scanner)
+SL_BUFFER_PCT = 0.015
+ENTRY_ZONE_PCT = 0.008
+RR_MULTIPLES = [1.5, 2.5, 4.0]
 
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -131,7 +138,7 @@ def fetch_intraday_data(symbol):
         return None
 
 
-# ---------------- SUPPORT LEVELS (daily) ----------------
+# ---------------- SWING POINTS / SUPPORT / RESISTANCE ----------------
 def find_swing_points(df, window=PIVOT_WINDOW):
     highs, lows = [], []
     for i in range(window, len(df) - window):
@@ -164,9 +171,31 @@ def find_support_levels(df, tolerance=SUPPORT_TOUCH_TOLERANCE, min_touches=SUPPO
     return levels
 
 
+def find_resistance_levels(df):
+    highs, _ = find_swing_points(df)
+    return sorted(set(round(h[1], 2) for h in highs))
+
+
+# ---------------- TRADE LEVELS (Entry / SL / Targets) ----------------
+def calculate_trade_levels(base_level, current_price, resistances):
+    entry_low = round(base_level, 2)
+    entry_high = round(base_level * (1 + ENTRY_ZONE_PCT), 2)
+    sl = round(base_level * (1 - SL_BUFFER_PCT), 2)
+    risk = entry_low - sl
+
+    targets = [r for r in resistances if r > current_price][:3]
+
+    idx = len(targets)
+    while len(targets) < 3:
+        targets.append(round(entry_low + risk * RR_MULTIPLES[idx], 2))
+        idx += 1
+
+    return entry_low, entry_high, sl, targets[0], targets[1], targets[2]
+
+
 # ---------------- LEVELS CACHE ----------------
 def build_levels_cache(symbols, cache_path):
-    print(f"Building today's support-level cache for {len(symbols)} symbols (first run of the day)...")
+    print(f"Building today's support/resistance cache for {len(symbols)} symbols (first run of the day)...")
     rows = []
     for i, sym in enumerate(symbols):
         df = fetch_daily_data(sym, days=120)
@@ -174,10 +203,12 @@ def build_levels_cache(symbols, cache_path):
             time.sleep(0.2)
             continue
         levels = find_support_levels(df)
+        resistances = find_resistance_levels(df)
         avg_vol_20d = float(df["volume"].iloc[-20:].mean())
         rows.append({
             "symbol": sym,
             "levels": ";".join(f"{l:.2f}" for l in levels),
+            "resistances": ";".join(f"{r:.2f}" for r in resistances),
             "avg_vol_20d": avg_vol_20d,
         })
         if (i + 1) % 50 == 0:
@@ -193,6 +224,9 @@ def build_levels_cache(symbols, cache_path):
 def load_levels_cache(cache_path):
     df = pd.read_csv(cache_path)
     df["levels"] = df["levels"].fillna("").apply(
+        lambda s: [float(x) for x in str(s).split(";") if x]
+    )
+    df["resistances"] = df["resistances"].fillna("").apply(
         lambda s: [float(x) for x in str(s).split(";") if x]
     )
     return df.set_index("symbol")
@@ -236,6 +270,12 @@ def check_intraday_signals(df, levels, avg_vol_20d):
     }
 
 
+# ---------------- RESULTS CSV (grows across the day) ----------------
+def append_result_row(results_path, row_dict):
+    file_exists = os.path.exists(results_path)
+    pd.DataFrame([row_dict]).to_csv(results_path, mode="a", header=not file_exists, index=False)
+
+
 # ---------------- TELEGRAM ----------------
 def send_telegram_message(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -261,13 +301,14 @@ def run_intraday_scan():
     date_str = now_ist().strftime("%Y%m%d")
     levels_cache_path = f"{CACHE_DIR}/levels_{date_str}.csv"
     alerted_cache_path = f"{CACHE_DIR}/alerted_{date_str}.csv"
+    results_path = f"intraday_results_{date_str}.csv"
 
     symbols = load_stock_list()
     print(f"Universe size: {len(symbols)} symbols")
 
     if os.path.exists(levels_cache_path):
         levels_df = load_levels_cache(levels_cache_path)
-        print(f"Loaded cached support levels for {len(levels_df)} symbols.")
+        print(f"Loaded cached support/resistance levels for {len(levels_df)} symbols.")
     else:
         levels_df = build_levels_cache(symbols, levels_cache_path)
 
@@ -277,6 +318,7 @@ def run_intraday_scan():
         alerted_keys = set()
 
     new_alerts = 0
+    cycle_time = now_ist().strftime("%H:%M:%S")
 
     for i, sym in enumerate(symbols):
         if sym not in levels_df.index:
@@ -284,6 +326,7 @@ def run_intraday_scan():
 
         row = levels_df.loc[sym]
         levels = row["levels"] if isinstance(row["levels"], list) else []
+        resistances = row["resistances"] if isinstance(row["resistances"], list) else []
         avg_vol_20d = row["avg_vol_20d"]
 
         intraday_df = fetch_intraday_data(sym)
@@ -306,26 +349,68 @@ def run_intraday_scan():
                 send_telegram_message(msg)
                 alerted_keys.add(key)
                 new_alerts += 1
+
+                append_result_row(results_path, {
+                    "timestamp": cycle_time,
+                    "symbol": clean_sym,
+                    "signal_type": "VOLUME_SURGE",
+                    "price": round(sig["current_price"], 2),
+                    "day_low": round(sig["day_low"], 2),
+                    "vol_ratio_day": round(sig["vol_ratio_day"], 2),
+                    "vol_ratio_spike": round(sig["vol_ratio_spike"], 2),
+                    "bounce_level": "",
+                    "entry_low": "",
+                    "entry_high": "",
+                    "stop_loss": "",
+                    "target1": "",
+                    "target2": "",
+                    "target3": "",
+                })
                 time.sleep(1)
 
         if sig["support_bounce"]:
             key = f"{sym}_SUPPORTBOUNCE"
             if key not in alerted_keys:
+                entry_low, entry_high, sl, t1, t2, t3 = calculate_trade_levels(
+                    sig["bounce_level"], sig["current_price"], resistances
+                )
+
                 msg = (
                     f"SUPPORT BOUNCE — {clean_sym}\n"
                     f"Price: {sig['current_price']:.2f} | Day low: {sig['day_low']:.2f}\n"
                     f"Support level: {sig['bounce_level']:.2f}\n"
+                    f"Entry: {entry_low}-{entry_high} | SL: {sl}\n"
+                    f"T1: {t1} | T2: {t2} | T3: {t3}\n"
                     f"{now_ist().strftime('%H:%M IST')}"
                 )
                 send_telegram_message(msg)
                 alerted_keys.add(key)
                 new_alerts += 1
+
+                append_result_row(results_path, {
+                    "timestamp": cycle_time,
+                    "symbol": clean_sym,
+                    "signal_type": "SUPPORT_BOUNCE",
+                    "price": round(sig["current_price"], 2),
+                    "day_low": round(sig["day_low"], 2),
+                    "vol_ratio_day": round(sig["vol_ratio_day"], 2),
+                    "vol_ratio_spike": round(sig["vol_ratio_spike"], 2),
+                    "bounce_level": sig["bounce_level"],
+                    "entry_low": entry_low,
+                    "entry_high": entry_high,
+                    "stop_loss": sl,
+                    "target1": t1,
+                    "target2": t2,
+                    "target3": t3,
+                })
                 time.sleep(1)
 
         time.sleep(0.15)
 
     pd.DataFrame({"key": sorted(alerted_keys)}).to_csv(alerted_cache_path, index=False)
     print(f"\nCycle complete. New alerts this cycle: {new_alerts}. Total alerted today: {len(alerted_keys)}.")
+    if os.path.exists(results_path):
+        print(f"Results file: {results_path} (grows with each new signal across the day)")
 
 
 if __name__ == "__main__":
