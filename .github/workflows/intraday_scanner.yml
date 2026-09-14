@@ -33,6 +33,10 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add intraday_cache/
-          git diff --staged --quiet || git commit -m "Auto: intraday cache update $(date +'%Y-%m-%d %H:%M')"
-          git push
+          if [ -d "intraday_cache" ]; then
+            git add intraday_cache/
+            git diff --staged --quiet || git commit -m "Auto: intraday cache update $(date +'%Y-%m-%d %H:%M')"
+            git push
+          else
+            echo "No intraday_cache folder yet (market was closed this run) — nothing to commit."
+          fi
