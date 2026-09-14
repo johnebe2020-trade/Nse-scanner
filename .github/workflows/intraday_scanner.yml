@@ -29,14 +29,15 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python intraday_scanner.py
 
-      - name: Commit cache files back to repo
+      - name: Commit cache and results files back to repo
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           if [ -d "intraday_cache" ]; then
             git add intraday_cache/
-            git diff --staged --quiet || git commit -m "Auto: intraday cache update $(date +'%Y-%m-%d %H:%M')"
-            git push
-          else
-            echo "No intraday_cache folder yet (market was closed this run) — nothing to commit."
           fi
+          if ls intraday_results_*.csv 1> /dev/null 2>&1; then
+            git add intraday_results_*.csv
+          fi
+          git diff --staged --quiet || git commit -m "Auto: intraday update $(date +'%Y-%m-%d %H:%M')"
+          git push
