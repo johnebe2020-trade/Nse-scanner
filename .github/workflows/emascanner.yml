@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "*/15 * * * 1-5"
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
 
   scan:
@@ -22,10 +27,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Check Python
-        run: |
-          python --version
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -35,13 +36,29 @@ jobs:
         run: |
           python scanner.py
 
-      - name: Check generated files
+      - name: Show scanner output
         run: |
-          echo "Scanner output:"
+          echo "Scanner completed."
+          echo "Files generated:"
           ls -la output/
 
-      - name: Upload dashboard
-        uses: actions/upload-artifact@v4
+      - name: Upload dashboard to Pages
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: john-scanner-dashboard
           path: output/
+
+  deploy:
+
+    needs: scan
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
