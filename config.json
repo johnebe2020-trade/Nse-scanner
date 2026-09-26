@@ -1,0 +1,12 @@
+{
+  "ema_length": 50,
+  "rsi_length": 14,
+  "volume_average_length": 20,
+  "volume_multiplier": 1.5,
+  "pullback_tolerance_pct": 1.0,
+  "max_setup_bars": 5,
+  "max_pullback_bars": 3,
+  "fresh_bars": 1,
+  "aged_bars": 5,
+  "require_bullish_confirmation": true
+}
