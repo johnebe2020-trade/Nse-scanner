@@ -5,7 +5,7 @@ import pandas as pd
 
 
 # ============================================================
-# JOHN'S BACKTEST ENGINE
+# JOHN'S BACKTEST ENGINE V2
 # ============================================================
 
 ROOT = Path(__file__).resolve().parent
@@ -16,9 +16,14 @@ SIGNALS_FILE = ROOT / "output" / "scanner_results.csv"
 OUTPUT_CSV = ROOT / "output" / "backtest_results.csv"
 OUTPUT_HTML = ROOT / "output" / "backtest.html"
 
-
-# Maximum number of daily bars to track after confirmation
+# Maximum number of daily candles to follow a signal
 MAX_BARS = 20
+
+# Position management:
+# 50% booked at TP1
+# Remaining 50% targeted at TP2
+TP1_PART = 0.50
+TP2_PART = 0.50
 
 
 # ============================================================
@@ -48,22 +53,30 @@ def money(value):
     return f"₹{float(value):,.2f}"
 
 
-def number(value, decimals=2):
+def pct(value):
 
     if pd.isna(value):
         return "-"
 
-    return f"{float(value):.{decimals}f}"
+    return f"{float(value):.2f}%"
+
+
+def num(value):
+
+    if pd.isna(value):
+        return "-"
+
+    return f"{float(value):.2f}"
 
 
 # ============================================================
-# LOAD DATA
+# LOAD FILES
 # ============================================================
 
 print()
-print("=" * 65)
-print("JOHN'S BACKTEST ENGINE")
-print("=" * 65)
+print("=" * 70)
+print("JOHN'S BACKTEST ENGINE V2")
+print("=" * 70)
 print()
 
 if not DATA_FILE.exists():
@@ -85,11 +98,11 @@ signals = pd.read_csv(SIGNALS_FILE)
 
 
 print(
-    f"OHLCV rows: {len(ohlcv):,}"
+    f"OHLCV rows       : {len(ohlcv):,}"
 )
 
 print(
-    f"Scanner signals: {len(signals):,}"
+    f"Scanner signals  : {len(signals):,}"
 )
 
 
@@ -135,15 +148,15 @@ ohlcv["date"] = pd.to_datetime(
     errors="coerce"
 )
 
-for col in [
+for column in [
     "open",
     "high",
     "low",
     "close"
 ]:
 
-    ohlcv[col] = pd.to_numeric(
-        ohlcv[col],
+    ohlcv[column] = pd.to_numeric(
+        ohlcv[column],
         errors="coerce"
     )
 
@@ -165,7 +178,7 @@ ohlcv = ohlcv.sort_values(
 
 
 # ============================================================
-# FIND SIGNAL COLUMNS
+# SIGNAL COLUMNS
 # ============================================================
 
 symbol_col = find_column(
@@ -202,34 +215,35 @@ confirmation_col = find_column(
     ]
 )
 
+
 if symbol_col is None:
     raise ValueError(
-        "Could not find STOCK/SYMBOL column in scanner_results.csv"
+        "STOCK/SYMBOL column not found."
     )
 
 if entry_col is None:
     raise ValueError(
-        "Could not find ENTRY column in scanner_results.csv"
+        "ENTRY column not found."
     )
 
 if sl_col is None:
     raise ValueError(
-        "Could not find SL column in scanner_results.csv"
+        "SL column not found."
     )
 
 if tp1_col is None:
     raise ValueError(
-        "Could not find TP1 column in scanner_results.csv"
+        "TP1 column not found."
     )
 
 if tp2_col is None:
     raise ValueError(
-        "Could not find TP2 column in scanner_results.csv"
+        "TP2 column not found."
     )
 
 if confirmation_col is None:
     raise ValueError(
-        "Could not find CONFIRMATION column in scanner_results.csv"
+        "CONFIRMATION column not found."
     )
 
 
@@ -289,7 +303,7 @@ signals = signals.dropna(
 results = []
 
 print()
-print("Running historical test...")
+print("Running V2 historical test...")
 print()
 
 
@@ -318,16 +332,22 @@ for _, signal in signals.iterrows():
     )
 
 
+    # --------------------------------------------------------
+    # Get stock candles
+    # --------------------------------------------------------
+
     stock = ohlcv[
         ohlcv["symbol"] == symbol
     ].copy()
 
 
     if stock.empty:
+
         continue
 
 
-    # Only candles AFTER confirmation
+    # Only candles AFTER confirmation.
+    # This prevents using future information.
     future = stock[
         stock["date"] > signal_date
     ].head(MAX_BARS)
@@ -343,11 +363,26 @@ for _, signal in signals.iterrows():
             "sl": sl,
             "tp1": tp1,
             "tp2": tp2,
-            "result": "NO FUTURE DATA",
-            "bars": 0,
+
+            "status": "NO FUTURE DATA",
+
+            "tp1_hit": False,
+            "tp2_hit": False,
+            "sl_hit": False,
+
+            "tp1_date": None,
+            "tp2_date": None,
+            "sl_date": None,
+
+            "bars_to_tp1": None,
+            "bars_to_tp2": None,
+            "bars_to_sl": None,
+
             "exit_date": None,
             "exit_price": None,
+
             "return_pct": None,
+
             "max_favourable_pct": None,
             "max_adverse_pct": None
 
@@ -356,16 +391,38 @@ for _, signal in signals.iterrows():
         continue
 
 
-    result = "OPEN"
+    # --------------------------------------------------------
+    # State
+    # --------------------------------------------------------
 
-    exit_date = None
-    exit_price = None
-    bars_used = 0
+    tp1_hit = False
+    tp2_hit = False
+    sl_hit = False
 
+    tp1_date = None
+    tp2_date = None
+    sl_date = None
+
+    bars_to_tp1 = None
+    bars_to_tp2 = None
+    bars_to_sl = None
 
     max_high = entry
     min_low = entry
 
+    status = "OPEN"
+
+    final_exit_date = None
+    final_exit_price = None
+
+    remaining_position = TP2_PART
+
+    realised_return = 0.0
+
+
+    # --------------------------------------------------------
+    # Follow each future candle
+    # --------------------------------------------------------
 
     for bar_number, (_, bar) in enumerate(
         future.iterrows(),
@@ -374,6 +431,9 @@ for _, signal in signals.iterrows():
 
         high = float(bar["high"])
         low = float(bar["low"])
+        close = float(bar["close"])
+
+        bar_date = bar["date"]
 
 
         max_high = max(
@@ -387,92 +447,243 @@ for _, signal in signals.iterrows():
         )
 
 
-        # ----------------------------------------------------
-        # IMPORTANT:
-        # If both SL and TP are touched on the same candle,
-        # we assume SL happened first.
+        # ====================================================
+        # IMPORTANT SAME-CANDLE RULE
         #
-        # This is conservative because daily OHLC does not
-        # tell us the intraday order of high/low.
-        # ----------------------------------------------------
+        # If SL is touched on the same candle before/alongside
+        # target information, we conservatively treat SL as
+        # happening first.
+        # ====================================================
 
-        hit_sl = low <= sl
+        hit_sl_now = low <= sl
 
-        hit_tp2 = high >= tp2
+        hit_tp1_now = high >= tp1
 
-        hit_tp1 = high >= tp1
-
-
-        if hit_sl:
-
-            result = "SL"
-
-            exit_date = bar["date"]
-
-            exit_price = sl
-
-            bars_used = bar_number
-
-            break
+        hit_tp2_now = high >= tp2
 
 
-        if hit_tp2:
+        # ====================================================
+        # CASE 1:
+        # SL happens before TP1
+        # ====================================================
 
-            result = "TP2"
+        if not tp1_hit and hit_sl_now:
 
-            exit_date = bar["date"]
+            sl_hit = True
 
-            exit_price = tp2
+            sl_date = bar_date
 
-            bars_used = bar_number
+            bars_to_sl = bar_number
 
-            break
+            status = "SL BEFORE TP1"
 
+            final_exit_date = bar_date
 
-        if hit_tp1:
+            final_exit_price = sl
 
-            result = "TP1"
-
-            exit_date = bar["date"]
-
-            exit_price = tp1
-
-            bars_used = bar_number
+            realised_return = (
+                (sl - entry)
+                / entry
+                * 100
+            )
 
             break
 
 
-        bars_used = bar_number
+        # ====================================================
+        # CASE 2:
+        # TP1 reached
+        # ====================================================
+
+        if not tp1_hit and hit_tp1_now:
+
+            tp1_hit = True
+
+            tp1_date = bar_date
+
+            bars_to_tp1 = bar_number
+
+            # Book 50% at TP1
+            realised_return += (
+                TP1_PART
+                *
+                (
+                    (tp1 - entry)
+                    / entry
+                    * 100
+                )
+            )
+
+            remaining_position = TP2_PART
 
 
-    # --------------------------------------------------------
-    # Still open after tracking period
-    # --------------------------------------------------------
+            # ------------------------------------------------
+            # If TP2 is ALSO reached on this same candle,
+            # we can count TP2 because price's high reached
+            # the higher target.
+            # ------------------------------------------------
 
-    if result == "OPEN":
+            if hit_tp2_now:
+
+                tp2_hit = True
+
+                tp2_date = bar_date
+
+                bars_to_tp2 = bar_number
+
+                realised_return += (
+                    TP2_PART
+                    *
+                    (
+                        (tp2 - entry)
+                        / entry
+                        * 100
+                    )
+                )
+
+                remaining_position = 0
+
+                status = "TP2"
+
+                final_exit_date = bar_date
+
+                final_exit_price = tp2
+
+                break
+
+
+            continue
+
+
+        # ====================================================
+        # CASE 3:
+        # TP1 already reached
+        # ====================================================
+
+        if tp1_hit:
+
+            # -----------------------------------------------
+            # Remaining half reaches TP2
+            # -----------------------------------------------
+
+            if hit_tp2_now:
+
+                tp2_hit = True
+
+                tp2_date = bar_date
+
+                bars_to_tp2 = bar_number
+
+                realised_return += (
+                    TP2_PART
+                    *
+                    (
+                        (tp2 - entry)
+                        / entry
+                        * 100
+                    )
+                )
+
+                remaining_position = 0
+
+                status = "TP2"
+
+                final_exit_date = bar_date
+
+                final_exit_price = tp2
+
+                break
+
+
+            # -----------------------------------------------
+            # Remaining half hits SL
+            # -----------------------------------------------
+
+            if hit_sl_now:
+
+                sl_hit = True
+
+                sl_date = bar_date
+
+                bars_to_sl = bar_number
+
+                realised_return += (
+                    TP2_PART
+                    *
+                    (
+                        (sl - entry)
+                        / entry
+                        * 100
+                    )
+                )
+
+                remaining_position = 0
+
+                status = "TP1 → SL"
+
+                final_exit_date = bar_date
+
+                final_exit_price = sl
+
+                break
+
+
+    # ========================================================
+    # STILL OPEN AFTER MAX BARS
+    # ========================================================
+
+    if status == "OPEN":
 
         last_bar = future.iloc[-1]
 
-        exit_date = last_bar["date"]
+        final_exit_date = last_bar["date"]
 
-        exit_price = float(
+        final_close = float(
             last_bar["close"]
         )
 
 
-    return_pct = (
-        (exit_price - entry)
-        / entry
-        * 100
-    )
+        if tp1_hit:
 
+            # TP1 half already realised.
+            # Remaining half valued at last close.
+
+            remaining_return = (
+                (final_close - entry)
+                / entry
+                * 100
+            )
+
+            realised_return += (
+                remaining_position
+                *
+                remaining_return
+            )
+
+            status = "TP1 → OPEN"
+
+
+        else:
+
+            realised_return = (
+                (final_close - entry)
+                / entry
+                * 100
+            )
+
+
+        final_exit_price = final_close
+
+
+    # ========================================================
+    # MAX FAVOURABLE / ADVERSE MOVE
+    # ========================================================
 
     max_favourable_pct = (
         (max_high - entry)
         / entry
         * 100
     )
-
 
     max_adverse_pct = (
         (min_low - entry)
@@ -495,15 +706,31 @@ for _, signal in signals.iterrows():
 
         "tp2": tp2,
 
-        "result": result,
+        "status": status,
 
-        "bars": bars_used,
+        "tp1_hit": tp1_hit,
 
-        "exit_date": exit_date,
+        "tp2_hit": tp2_hit,
 
-        "exit_price": exit_price,
+        "sl_hit": sl_hit,
 
-        "return_pct": return_pct,
+        "tp1_date": tp1_date,
+
+        "tp2_date": tp2_date,
+
+        "sl_date": sl_date,
+
+        "bars_to_tp1": bars_to_tp1,
+
+        "bars_to_tp2": bars_to_tp2,
+
+        "bars_to_sl": bars_to_sl,
+
+        "exit_date": final_exit_date,
+
+        "exit_price": final_exit_price,
+
+        "return_pct": realised_return,
 
         "max_favourable_pct":
             max_favourable_pct,
@@ -515,7 +742,7 @@ for _, signal in signals.iterrows():
 
 
 # ============================================================
-# SAVE RESULTS
+# RESULTS DATAFRAME
 # ============================================================
 
 results_df = pd.DataFrame(results)
@@ -524,22 +751,34 @@ results_df = pd.DataFrame(results)
 if results_df.empty:
 
     print()
-    print("No backtest results were generated.")
-    print()
-
+    print("No backtest results generated.")
     raise SystemExit(0)
 
 
-results_df["signal_date"] = pd.to_datetime(
-    results_df["signal_date"]
-).dt.strftime("%Y-%m-%d")
+# ============================================================
+# FORMAT DATES
+# ============================================================
+
+date_columns = [
+    "signal_date",
+    "tp1_date",
+    "tp2_date",
+    "sl_date",
+    "exit_date"
+]
 
 
-results_df["exit_date"] = pd.to_datetime(
-    results_df["exit_date"],
-    errors="coerce"
-).dt.strftime("%Y-%m-%d")
+for column in date_columns:
 
+    results_df[column] = pd.to_datetime(
+        results_df[column],
+        errors="coerce"
+    ).dt.strftime("%Y-%m-%d")
+
+
+# ============================================================
+# SAVE CSV
+# ============================================================
 
 results_df.to_csv(
     OUTPUT_CSV,
@@ -553,62 +792,198 @@ results_df.to_csv(
 
 total = len(results_df)
 
-tp1_count = (
-    results_df["result"] == "TP1"
-).sum()
+tp1_count = int(
+    results_df["tp1_hit"].sum()
+)
 
-tp2_count = (
-    results_df["result"] == "TP2"
-).sum()
+tp2_count = int(
+    results_df["tp2_hit"].sum()
+)
 
-sl_count = (
-    results_df["result"] == "SL"
-).sum()
+sl_before_tp1 = int(
+    (
+        results_df["status"]
+        == "SL BEFORE TP1"
+    ).sum()
+)
 
-open_count = (
-    results_df["result"] == "OPEN"
-).sum()
+tp1_then_sl = int(
+    (
+        results_df["status"]
+        == "TP1 → SL"
+    ).sum()
+)
 
-no_data_count = (
-    results_df["result"] == "NO FUTURE DATA"
-).sum()
+tp1_open = int(
+    (
+        results_df["status"]
+        == "TP1 → OPEN"
+    ).sum()
+)
+
+tp2_full = int(
+    (
+        results_df["status"]
+        == "TP2"
+    ).sum()
+)
+
+no_future = int(
+    (
+        results_df["status"]
+        == "NO FUTURE DATA"
+    ).sum()
+)
 
 
-closed = results_df[
-    results_df["result"].isin(
-        ["TP1", "TP2", "SL"]
+# ============================================================
+# R-MULTIPLE
+# ============================================================
+
+# Risk based on scanner's original entry/SL.
+
+results_df["risk"] = (
+    results_df["entry"]
+    - results_df["sl"]
+)
+
+
+valid_risk = results_df[
+    results_df["risk"] > 0
+].copy()
+
+
+if not valid_risk.empty:
+
+    valid_risk["r_multiple"] = (
+        valid_risk["return_pct"]
+        /
+        (
+            valid_risk["risk"]
+            /
+            valid_risk["entry"]
+            *
+            100
+        )
     )
-]
 
-
-if len(closed) > 0:
-
-    avg_return = closed[
-        "return_pct"
+    average_r = valid_risk[
+        "r_multiple"
     ].mean()
 
 else:
 
-    avg_return = 0
+    average_r = 0
 
 
-win_count = tp1_count + tp2_count
+# ============================================================
+# RETURN
+# ============================================================
 
-if len(closed) > 0:
+closed_for_return = results_df[
+    results_df["status"] != "NO FUTURE DATA"
+]
 
-    win_rate = (
-        win_count
-        / len(closed)
-        * 100
+
+if not closed_for_return.empty:
+
+    average_return = (
+        closed_for_return[
+            "return_pct"
+        ].mean()
     )
 
 else:
 
-    win_rate = 0
+    average_return = 0
 
 
 # ============================================================
-# HTML DASHBOARD
+# TP1 HIT RATE
+# ============================================================
+
+usable = total - no_future
+
+if usable > 0:
+
+    tp1_rate = (
+        tp1_count
+        /
+        usable
+        *
+        100
+    )
+
+else:
+
+    tp1_rate = 0
+
+
+# ============================================================
+# TP2 RATE
+# ============================================================
+
+if usable > 0:
+
+    tp2_rate = (
+        tp2_count
+        /
+        usable
+        *
+        100
+    )
+
+else:
+
+    tp2_rate = 0
+
+
+# ============================================================
+# SL BEFORE TP1 RATE
+# ============================================================
+
+if usable > 0:
+
+    sl_rate = (
+        sl_before_tp1
+        /
+        usable
+        *
+        100
+    )
+
+else:
+
+    sl_rate = 0
+
+
+# ============================================================
+# AVERAGE BARS
+# ============================================================
+
+avg_bars_tp1 = results_df[
+    "bars_to_tp1"
+].dropna().mean()
+
+avg_bars_tp2 = results_df[
+    "bars_to_tp2"
+].dropna().mean()
+
+avg_bars_sl = results_df[
+    "bars_to_sl"
+].dropna().mean()
+
+avg_max_up = results_df[
+    "max_favourable_pct"
+].mean()
+
+avg_max_down = results_df[
+    "max_adverse_pct"
+].mean()
+
+
+# ============================================================
+# HTML TABLE
 # ============================================================
 
 rows_html = ""
@@ -616,24 +991,34 @@ rows_html = ""
 
 for _, row in results_df.iterrows():
 
-    result = str(
-        row["result"]
+    status = str(
+        row["status"]
     )
 
-    if result == "TP2":
-        badge = "tp2"
 
-    elif result == "TP1":
-        badge = "tp1"
+    if status == "TP2":
 
-    elif result == "SL":
-        badge = "sl"
+        badge = "green"
 
-    elif result == "OPEN":
-        badge = "open"
+    elif status == "TP1 → SL":
+
+        badge = "yellow"
+
+    elif status == "TP1 → OPEN":
+
+        badge = "yellow"
+
+    elif status == "SL BEFORE TP1":
+
+        badge = "red"
+
+    elif status == "OPEN":
+
+        badge = "blue"
 
     else:
-        badge = "nodata"
+
+        badge = "grey"
 
 
     rows_html += f"""
@@ -665,33 +1050,53 @@ for _, row in results_df.iterrows():
 
         <td>
             <span class="badge {badge}">
-                {html.escape(result)}
+                {html.escape(status)}
             </span>
         </td>
 
         <td>
-            {row["bars"]}
+            {row["tp1_date"]
+             if pd.notna(row["tp1_date"])
+             else "-"}
         </td>
 
         <td>
-            {money(row["exit_price"])}
+            {row["tp2_date"]
+             if pd.notna(row["tp2_date"])
+             else "-"}
         </td>
 
         <td>
-            {number(row["return_pct"])}%
+            {row["bars_to_tp1"]
+             if pd.notna(row["bars_to_tp1"])
+             else "-"}
         </td>
 
         <td>
-            {number(row["max_favourable_pct"])}%
+            {row["bars_to_tp2"]
+             if pd.notna(row["bars_to_tp2"])
+             else "-"}
         </td>
 
         <td>
-            {number(row["max_adverse_pct"])}%
+            {pct(row["return_pct"])}
+        </td>
+
+        <td>
+            {pct(row["max_favourable_pct"])}
+        </td>
+
+        <td>
+            {pct(row["max_adverse_pct"])}
         </td>
 
     </tr>
     """
 
+
+# ============================================================
+# HTML
+# ============================================================
 
 html_page = f"""
 <!DOCTYPE html>
@@ -703,11 +1108,10 @@ html_page = f"""
 <meta charset="UTF-8">
 
 <meta name="viewport"
-      content="width=device-width,
-               initial-scale=1.0">
+content="width=device-width, initial-scale=1.0">
 
 <title>
-John's Scanner - Backtest
+John's Backtest V2
 </title>
 
 <style>
@@ -716,398 +1120,9 @@ body {{
 
     margin: 0;
 
-    background: #0b1020;
+    background: #090e1c;
 
-    color: #e8ecf5;
+    color: #e8edf7;
 
     font-family:
         Arial,
-        sans-serif;
-
-}}
-
-.container {{
-
-    padding: 20px;
-
-}}
-
-h1 {{
-
-    margin-bottom: 5px;
-
-}}
-
-.subtitle {{
-
-    color: #9ba6bd;
-
-    margin-bottom: 20px;
-
-}}
-
-.cards {{
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(
-            auto-fit,
-            minmax(
-                150px,
-                1fr
-            )
-        );
-
-    gap: 12px;
-
-    margin-bottom: 25px;
-
-}}
-
-.card {{
-
-    background: #171d30;
-
-    border: 1px solid #29324a;
-
-    border-radius: 10px;
-
-    padding: 16px;
-
-}}
-
-.card-title {{
-
-    color: #9ba6bd;
-
-    font-size: 13px;
-
-}}
-
-.card-value {{
-
-    font-size: 25px;
-
-    font-weight: bold;
-
-    margin-top: 7px;
-
-}}
-
-.table-wrap {{
-
-    overflow-x: auto;
-
-}}
-
-table {{
-
-    width: 100%;
-
-    border-collapse:
-        collapse;
-
-    background: #171d30;
-
-}}
-
-th {{
-
-    background: #11172a;
-
-    color: #9ba6bd;
-
-    padding: 12px;
-
-    text-align: left;
-
-    white-space: nowrap;
-
-}}
-
-td {{
-
-    padding: 11px;
-
-    border-top:
-        1px solid #29324a;
-
-    white-space: nowrap;
-
-}}
-
-.badge {{
-
-    padding:
-        5px 9px;
-
-    border-radius: 6px;
-
-    font-weight: bold;
-
-    font-size: 12px;
-
-}}
-
-.tp1 {{
-
-    background: #164e32;
-
-    color: #5ee49a;
-
-}}
-
-.tp2 {{
-
-    background: #14532d;
-
-    color: #86efac;
-
-}}
-
-.sl {{
-
-    background: #542020;
-
-    color: #ff8585;
-
-}}
-
-.open {{
-
-    background: #423714;
-
-    color: #ffd75e;
-
-}}
-
-.nodata {{
-
-    background: #303644;
-
-    color: #aeb7ca;
-
-}}
-
-.note {{
-
-    margin-top: 20px;
-
-    color: #8e99b0;
-
-    font-size: 13px;
-
-    line-height: 1.6;
-
-}}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="container">
-
-<h1>
-📊 JOHN'S BACKTEST
-</h1>
-
-<div class="subtitle">
-
-Historical test of confirmed
-EMA Pullback signals
-
-</div>
-
-
-<div class="cards">
-
-<div class="card">
-
-<div class="card-title">
-TOTAL SIGNALS
-</div>
-
-<div class="card-value">
-{total}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-TP1
-</div>
-
-<div class="card-value">
-{tp1_count}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-TP2
-</div>
-
-<div class="card-value">
-{tp2_count}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-SL
-</div>
-
-<div class="card-value">
-{sl_count}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-OPEN
-</div>
-
-<div class="card-value">
-{open_count}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-WIN RATE
-</div>
-
-<div class="card-value">
-{number(win_rate)}%
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-AVG RETURN
-</div>
-
-<div class="card-value">
-{number(avg_return)}%
-</div>
-
-</div>
-
-</div>
-
-
-<div class="table-wrap">
-
-<table>
-
-<thead>
-
-<tr>
-
-<th>STOCK</th>
-<th>SIGNAL</th>
-<th>ENTRY</th>
-<th>SL</th>
-<th>TP1</th>
-<th>TP2</th>
-<th>RESULT</th>
-<th>BARS</th>
-<th>EXIT</th>
-<th>RETURN</th>
-<th>MAX ↑</th>
-<th>MAX ↓</th>
-
-</tr>
-
-</thead>
-
-<tbody>
-
-{rows_html}
-
-</tbody>
-
-</table>
-
-</div>
-
-
-<div class="note">
-
-<b>Important:</b>
-
-This is a historical research test,
-not a trading recommendation.
-
-For daily candles, if both the stop-loss
-and target appear to be touched during
-the same candle, this backtest assumes
-the stop-loss happened first because
-daily OHLC data does not reveal the
-intraday order.
-
-Maximum tracking period:
-{MAX_BARS} trading bars.
-
-</div>
-
-</div>
-
-</body>
-
-</html>
-"""
-
-
-OUTPUT_HTML.write_text(
-    html_page,
-    encoding="utf-8"
-)
-
-
-# ============================================================
-# CONSOLE SUMMARY
-# ============================================================
-
-print()
-print("=" * 65)
-print("BACKTEST COMPLETE")
-print("=" * 65)
-
-print()
-print(f"Total signals : {total}")
-print(f"TP1           : {tp1_count}")
-print(f"TP2           : {tp2_count}")
-print(f"SL            : {sl_count}")
-print(f"Open          : {open_count}")
-print(f"No future data: {no_data_count}")
-print(f"Win rate      : {win_rate:.2f}%")
-print(f"Average return: {avg_return:.2f}%")
-
-print()
-print(f"CSV : {OUTPUT_CSV}")
-print(f"HTML: {OUTPUT_HTML}")
-
-print()
