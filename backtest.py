@@ -1,11 +1,10 @@
-import html
 from pathlib import Path
-
+import html
 import pandas as pd
 
 
 # ============================================================
-# JOHN'S BACKTEST ENGINE V2
+# JOHN'S BACKTEST V2
 # ============================================================
 
 ROOT = Path(__file__).resolve().parent
@@ -16,94 +15,36 @@ SIGNALS_FILE = ROOT / "output" / "scanner_results.csv"
 OUTPUT_CSV = ROOT / "output" / "backtest_results.csv"
 OUTPUT_HTML = ROOT / "output" / "backtest.html"
 
-# Maximum number of daily candles to follow a signal
 MAX_BARS = 20
 
-# Position management:
-# 50% booked at TP1
-# Remaining 50% targeted at TP2
 TP1_PART = 0.50
 TP2_PART = 0.50
 
 
 # ============================================================
-# HELPERS
-# ============================================================
-
-def find_column(df, names):
-
-    lower_map = {
-        str(c).strip().lower(): c
-        for c in df.columns
-    }
-
-    for name in names:
-
-        if name.lower() in lower_map:
-            return lower_map[name.lower()]
-
-    return None
-
-
-def money(value):
-
-    if pd.isna(value):
-        return "-"
-
-    return f"₹{float(value):,.2f}"
-
-
-def pct(value):
-
-    if pd.isna(value):
-        return "-"
-
-    return f"{float(value):.2f}%"
-
-
-def num(value):
-
-    if pd.isna(value):
-        return "-"
-
-    return f"{float(value):.2f}"
-
-
-# ============================================================
-# LOAD FILES
+# LOAD DATA
 # ============================================================
 
 print()
-print("=" * 70)
-print("JOHN'S BACKTEST ENGINE V2")
-print("=" * 70)
-print()
+print("=" * 60)
+print("JOHN'S BACKTEST V2")
+print("=" * 60)
 
 if not DATA_FILE.exists():
-
     raise FileNotFoundError(
-        f"OHLCV file not found: {DATA_FILE}"
+        f"Missing OHLCV file: {DATA_FILE}"
     )
 
 if not SIGNALS_FILE.exists():
-
     raise FileNotFoundError(
-        f"Scanner results not found: {SIGNALS_FILE}"
+        f"Missing scanner results: {SIGNALS_FILE}"
     )
 
-
 ohlcv = pd.read_csv(DATA_FILE)
-
 signals = pd.read_csv(SIGNALS_FILE)
 
-
-print(
-    f"OHLCV rows       : {len(ohlcv):,}"
-)
-
-print(
-    f"Scanner signals  : {len(signals):,}"
-)
+print(f"OHLCV rows: {len(ohlcv)}")
+print(f"Signals: {len(signals)}")
 
 
 # ============================================================
@@ -130,11 +71,9 @@ missing = [
 ]
 
 if missing:
-
     raise ValueError(
         f"OHLCV missing columns: {missing}"
     )
-
 
 ohlcv["symbol"] = (
     ohlcv["symbol"]
@@ -148,18 +87,11 @@ ohlcv["date"] = pd.to_datetime(
     errors="coerce"
 )
 
-for column in [
-    "open",
-    "high",
-    "low",
-    "close"
-]:
-
-    ohlcv[column] = pd.to_numeric(
-        ohlcv[column],
+for col in ["open", "high", "low", "close"]:
+    ohlcv[col] = pd.to_numeric(
+        ohlcv[col],
         errors="coerce"
     )
-
 
 ohlcv = ohlcv.dropna(
     subset=[
@@ -178,8 +110,22 @@ ohlcv = ohlcv.sort_values(
 
 
 # ============================================================
-# SIGNAL COLUMNS
+# FIND SIGNAL COLUMNS
 # ============================================================
+
+def find_column(df, choices):
+
+    lookup = {
+        str(c).strip().lower(): c
+        for c in df.columns
+    }
+
+    for name in choices:
+        if name.lower() in lookup:
+            return lookup[name.lower()]
+
+    return None
+
 
 symbol_col = find_column(
     signals,
@@ -216,35 +162,21 @@ confirmation_col = find_column(
 )
 
 
-if symbol_col is None:
-    raise ValueError(
-        "STOCK/SYMBOL column not found."
-    )
+required_signal_columns = {
+    "symbol": symbol_col,
+    "entry": entry_col,
+    "SL": sl_col,
+    "TP1": tp1_col,
+    "TP2": tp2_col,
+    "confirmation": confirmation_col
+}
 
-if entry_col is None:
-    raise ValueError(
-        "ENTRY column not found."
-    )
+for name, col in required_signal_columns.items():
 
-if sl_col is None:
-    raise ValueError(
-        "SL column not found."
-    )
-
-if tp1_col is None:
-    raise ValueError(
-        "TP1 column not found."
-    )
-
-if tp2_col is None:
-    raise ValueError(
-        "TP2 column not found."
-    )
-
-if confirmation_col is None:
-    raise ValueError(
-        "CONFIRMATION column not found."
-    )
+    if col is None:
+        raise ValueError(
+            f"Could not find signal column: {name}"
+        )
 
 
 # ============================================================
@@ -278,11 +210,10 @@ signals["tp2_price"] = pd.to_numeric(
     errors="coerce"
 )
 
-signals["confirmation_date"] = pd.to_datetime(
+signals["signal_date"] = pd.to_datetime(
     signals[confirmation_col],
     errors="coerce"
 )
-
 
 signals = signals.dropna(
     subset=[
@@ -291,7 +222,7 @@ signals = signals.dropna(
         "sl_price",
         "tp1_price",
         "tp2_price",
-        "confirmation_date"
+        "signal_date"
     ]
 )
 
@@ -303,7 +234,7 @@ signals = signals.dropna(
 results = []
 
 print()
-print("Running V2 historical test...")
+print("Running historical test...")
 print()
 
 
@@ -311,88 +242,59 @@ for _, signal in signals.iterrows():
 
     symbol = signal["symbol"]
 
-    signal_date = signal[
-        "confirmation_date"
-    ]
+    signal_date = signal["signal_date"]
 
-    entry = float(
-        signal["entry_price"]
-    )
+    entry = float(signal["entry_price"])
+    sl = float(signal["sl_price"])
+    tp1 = float(signal["tp1_price"])
+    tp2 = float(signal["tp2_price"])
 
-    sl = float(
-        signal["sl_price"]
-    )
-
-    tp1 = float(
-        signal["tp1_price"]
-    )
-
-    tp2 = float(
-        signal["tp2_price"]
-    )
-
-
-    # --------------------------------------------------------
-    # Get stock candles
-    # --------------------------------------------------------
 
     stock = ohlcv[
         ohlcv["symbol"] == symbol
     ].copy()
 
 
-    if stock.empty:
-
-        continue
-
-
-    # Only candles AFTER confirmation.
-    # This prevents using future information.
     future = stock[
         stock["date"] > signal_date
     ].head(MAX_BARS)
 
 
+    # --------------------------------------------------------
+    # NO FUTURE DATA
+    # --------------------------------------------------------
+
     if future.empty:
 
         results.append({
-
             "symbol": symbol,
             "signal_date": signal_date,
             "entry": entry,
             "sl": sl,
             "tp1": tp1,
             "tp2": tp2,
-
             "status": "NO FUTURE DATA",
-
             "tp1_hit": False,
             "tp2_hit": False,
             "sl_hit": False,
-
             "tp1_date": None,
             "tp2_date": None,
             "sl_date": None,
-
             "bars_to_tp1": None,
             "bars_to_tp2": None,
             "bars_to_sl": None,
-
             "exit_date": None,
             "exit_price": None,
-
             "return_pct": None,
-
-            "max_favourable_pct": None,
-            "max_adverse_pct": None
-
+            "max_up_pct": None,
+            "max_down_pct": None
         })
 
         continue
 
 
     # --------------------------------------------------------
-    # State
+    # STATE
     # --------------------------------------------------------
 
     tp1_hit = False
@@ -407,21 +309,19 @@ for _, signal in signals.iterrows():
     bars_to_tp2 = None
     bars_to_sl = None
 
-    max_high = entry
-    min_low = entry
-
     status = "OPEN"
 
-    final_exit_date = None
-    final_exit_price = None
-
-    remaining_position = TP2_PART
+    exit_date = None
+    exit_price = None
 
     realised_return = 0.0
 
+    max_high = entry
+    min_low = entry
+
 
     # --------------------------------------------------------
-    # Follow each future candle
+    # FOLLOW FUTURE CANDLES
     # --------------------------------------------------------
 
     for bar_number, (_, bar) in enumerate(
@@ -435,257 +335,178 @@ for _, signal in signals.iterrows():
 
         bar_date = bar["date"]
 
-
-        max_high = max(
-            max_high,
-            high
-        )
-
-        min_low = min(
-            min_low,
-            low
-        )
+        max_high = max(max_high, high)
+        min_low = min(min_low, low)
 
 
-        # ====================================================
-        # IMPORTANT SAME-CANDLE RULE
-        #
-        # If SL is touched on the same candle before/alongside
-        # target information, we conservatively treat SL as
-        # happening first.
-        # ====================================================
-
-        hit_sl_now = low <= sl
-
-        hit_tp1_now = high >= tp1
-
-        hit_tp2_now = high >= tp2
+        hit_sl = low <= sl
+        hit_tp1 = high >= tp1
+        hit_tp2 = high >= tp2
 
 
-        # ====================================================
-        # CASE 1:
-        # SL happens before TP1
-        # ====================================================
+        # ----------------------------------------------------
+        # SL BEFORE TP1
+        # ----------------------------------------------------
 
-        if not tp1_hit and hit_sl_now:
+        if not tp1_hit and hit_sl:
 
             sl_hit = True
-
             sl_date = bar_date
-
             bars_to_sl = bar_number
 
             status = "SL BEFORE TP1"
 
-            final_exit_date = bar_date
-
-            final_exit_price = sl
+            exit_date = bar_date
+            exit_price = sl
 
             realised_return = (
-                (sl - entry)
-                / entry
-                * 100
+                (sl - entry) / entry * 100
             )
 
             break
 
 
-        # ====================================================
-        # CASE 2:
-        # TP1 reached
-        # ====================================================
+        # ----------------------------------------------------
+        # TP1
+        # ----------------------------------------------------
 
-        if not tp1_hit and hit_tp1_now:
+        if not tp1_hit and hit_tp1:
 
             tp1_hit = True
 
             tp1_date = bar_date
-
             bars_to_tp1 = bar_number
 
-            # Book 50% at TP1
             realised_return += (
                 TP1_PART
                 *
-                (
-                    (tp1 - entry)
-                    / entry
-                    * 100
-                )
+                ((tp1 - entry) / entry * 100)
             )
 
-            remaining_position = TP2_PART
 
+            # TP2 on same candle
 
-            # ------------------------------------------------
-            # If TP2 is ALSO reached on this same candle,
-            # we can count TP2 because price's high reached
-            # the higher target.
-            # ------------------------------------------------
-
-            if hit_tp2_now:
+            if hit_tp2:
 
                 tp2_hit = True
 
                 tp2_date = bar_date
-
                 bars_to_tp2 = bar_number
 
                 realised_return += (
                     TP2_PART
                     *
-                    (
-                        (tp2 - entry)
-                        / entry
-                        * 100
-                    )
+                    ((tp2 - entry) / entry * 100)
                 )
-
-                remaining_position = 0
 
                 status = "TP2"
 
-                final_exit_date = bar_date
-
-                final_exit_price = tp2
+                exit_date = bar_date
+                exit_price = tp2
 
                 break
-
 
             continue
 
 
-        # ====================================================
-        # CASE 3:
-        # TP1 already reached
-        # ====================================================
+        # ----------------------------------------------------
+        # AFTER TP1
+        # ----------------------------------------------------
 
         if tp1_hit:
 
-            # -----------------------------------------------
-            # Remaining half reaches TP2
-            # -----------------------------------------------
+            # TP2
 
-            if hit_tp2_now:
+            if hit_tp2:
 
                 tp2_hit = True
 
                 tp2_date = bar_date
-
                 bars_to_tp2 = bar_number
 
                 realised_return += (
                     TP2_PART
                     *
-                    (
-                        (tp2 - entry)
-                        / entry
-                        * 100
-                    )
+                    ((tp2 - entry) / entry * 100)
                 )
-
-                remaining_position = 0
 
                 status = "TP2"
 
-                final_exit_date = bar_date
-
-                final_exit_price = tp2
+                exit_date = bar_date
+                exit_price = tp2
 
                 break
 
 
-            # -----------------------------------------------
             # Remaining half hits SL
-            # -----------------------------------------------
 
-            if hit_sl_now:
+            if hit_sl:
 
                 sl_hit = True
 
                 sl_date = bar_date
-
                 bars_to_sl = bar_number
 
                 realised_return += (
                     TP2_PART
                     *
-                    (
-                        (sl - entry)
-                        / entry
-                        * 100
-                    )
+                    ((sl - entry) / entry * 100)
                 )
 
-                remaining_position = 0
+                status = "TP1 -> SL"
 
-                status = "TP1 → SL"
-
-                final_exit_date = bar_date
-
-                final_exit_price = sl
+                exit_date = bar_date
+                exit_price = sl
 
                 break
 
 
-    # ========================================================
-    # STILL OPEN AFTER MAX BARS
-    # ========================================================
+    # --------------------------------------------------------
+    # STILL OPEN
+    # --------------------------------------------------------
 
     if status == "OPEN":
 
         last_bar = future.iloc[-1]
 
-        final_exit_date = last_bar["date"]
+        exit_date = last_bar["date"]
 
-        final_close = float(
+        exit_price = float(
             last_bar["close"]
         )
 
+        remaining_return = (
+            (exit_price - entry)
+            / entry
+            * 100
+        )
 
         if tp1_hit:
 
-            # TP1 half already realised.
-            # Remaining half valued at last close.
-
-            remaining_return = (
-                (final_close - entry)
-                / entry
-                * 100
-            )
-
             realised_return += (
-                remaining_position
+                TP2_PART
                 *
                 remaining_return
             )
 
-            status = "TP1 → OPEN"
-
+            status = "TP1 -> OPEN"
 
         else:
 
-            realised_return = (
-                (final_close - entry)
-                / entry
-                * 100
-            )
+            realised_return = remaining_return
 
 
-        final_exit_price = final_close
+    # --------------------------------------------------------
+    # MAX MOVE
+    # --------------------------------------------------------
 
-
-    # ========================================================
-    # MAX FAVOURABLE / ADVERSE MOVE
-    # ========================================================
-
-    max_favourable_pct = (
+    max_up_pct = (
         (max_high - entry)
         / entry
         * 100
     )
 
-    max_adverse_pct = (
+    max_down_pct = (
         (min_low - entry)
         / entry
         * 100
@@ -693,94 +514,47 @@ for _, signal in signals.iterrows():
 
 
     results.append({
-
         "symbol": symbol,
-
         "signal_date": signal_date,
-
         "entry": entry,
-
         "sl": sl,
-
         "tp1": tp1,
-
         "tp2": tp2,
-
         "status": status,
-
         "tp1_hit": tp1_hit,
-
         "tp2_hit": tp2_hit,
-
         "sl_hit": sl_hit,
-
         "tp1_date": tp1_date,
-
         "tp2_date": tp2_date,
-
         "sl_date": sl_date,
-
         "bars_to_tp1": bars_to_tp1,
-
         "bars_to_tp2": bars_to_tp2,
-
         "bars_to_sl": bars_to_sl,
-
-        "exit_date": final_exit_date,
-
-        "exit_price": final_exit_price,
-
+        "exit_date": exit_date,
+        "exit_price": exit_price,
         "return_pct": realised_return,
-
-        "max_favourable_pct":
-            max_favourable_pct,
-
-        "max_adverse_pct":
-            max_adverse_pct
-
+        "max_up_pct": max_up_pct,
+        "max_down_pct": max_down_pct
     })
 
 
 # ============================================================
-# RESULTS DATAFRAME
+# RESULTS
 # ============================================================
 
-results_df = pd.DataFrame(results)
+df = pd.DataFrame(results)
 
+if df.empty:
 
-if results_df.empty:
-
-    print()
-    print("No backtest results generated.")
+    print("No results generated.")
     raise SystemExit(0)
-
-
-# ============================================================
-# FORMAT DATES
-# ============================================================
-
-date_columns = [
-    "signal_date",
-    "tp1_date",
-    "tp2_date",
-    "sl_date",
-    "exit_date"
-]
-
-
-for column in date_columns:
-
-    results_df[column] = pd.to_datetime(
-        results_df[column],
-        errors="coerce"
-    ).dt.strftime("%Y-%m-%d")
 
 
 # ============================================================
 # SAVE CSV
 # ============================================================
 
-results_df.to_csv(
+df.to_csv(
     OUTPUT_CSV,
     index=False
 )
@@ -790,107 +564,60 @@ results_df.to_csv(
 # STATISTICS
 # ============================================================
 
-total = len(results_df)
+total = len(df)
 
 tp1_count = int(
-    results_df["tp1_hit"].sum()
+    df["tp1_hit"].sum()
 )
 
 tp2_count = int(
-    results_df["tp2_hit"].sum()
+    df["tp2_hit"].sum()
 )
 
 sl_before_tp1 = int(
-    (
-        results_df["status"]
-        == "SL BEFORE TP1"
-    ).sum()
+    (df["status"] == "SL BEFORE TP1").sum()
 )
 
 tp1_then_sl = int(
-    (
-        results_df["status"]
-        == "TP1 → SL"
-    ).sum()
+    (df["status"] == "TP1 -> SL").sum()
 )
 
 tp1_open = int(
-    (
-        results_df["status"]
-        == "TP1 → OPEN"
-    ).sum()
-)
-
-tp2_full = int(
-    (
-        results_df["status"]
-        == "TP2"
-    ).sum()
+    (df["status"] == "TP1 -> OPEN").sum()
 )
 
 no_future = int(
-    (
-        results_df["status"]
-        == "NO FUTURE DATA"
-    ).sum()
+    (df["status"] == "NO FUTURE DATA").sum()
 )
 
-
-# ============================================================
-# R-MULTIPLE
-# ============================================================
-
-# Risk based on scanner's original entry/SL.
-
-results_df["risk"] = (
-    results_df["entry"]
-    - results_df["sl"]
-)
+usable = total - no_future
 
 
-valid_risk = results_df[
-    results_df["risk"] > 0
-].copy()
+if usable > 0:
 
-
-if not valid_risk.empty:
-
-    valid_risk["r_multiple"] = (
-        valid_risk["return_pct"]
-        /
-        (
-            valid_risk["risk"]
-            /
-            valid_risk["entry"]
-            *
-            100
-        )
+    tp1_rate = (
+        tp1_count / usable * 100
     )
 
-    average_r = valid_risk[
-        "r_multiple"
-    ].mean()
+    tp2_rate = (
+        tp2_count / usable * 100
+    )
 
 else:
 
-    average_r = 0
+    tp1_rate = 0
+    tp2_rate = 0
 
 
-# ============================================================
-# RETURN
-# ============================================================
-
-closed_for_return = results_df[
-    results_df["status"] != "NO FUTURE DATA"
+closed = df[
+    df["status"] != "NO FUTURE DATA"
 ]
 
 
-if not closed_for_return.empty:
+if not closed.empty:
 
     average_return = (
-        closed_for_return[
-            "return_pct"
-        ].mean()
+        closed["return_pct"].mean()
     )
 
 else:
@@ -898,207 +625,92 @@ else:
     average_return = 0
 
 
+avg_bars_tp1 = (
+    df["bars_to_tp1"]
+    .dropna()
+    .mean()
+)
+
+avg_bars_tp2 = (
+    df["bars_to_tp2"]
+    .dropna()
+    .mean()
+)
+
+avg_max_up = (
+    df["max_up_pct"]
+    .dropna()
+    .mean()
+)
+
+avg_max_down = (
+    df["max_down_pct"]
+    .dropna()
+    .mean()
+)
+
+
 # ============================================================
-# TP1 HIT RATE
+# FORMAT DATE COLUMNS
 # ============================================================
 
-usable = total - no_future
+for col in [
+    "signal_date",
+    "tp1_date",
+    "tp2_date",
+    "sl_date",
+    "exit_date"
+]:
 
-if usable > 0:
+    df[col] = pd.to_datetime(
+        df[col],
+        errors="coerce"
+    ).dt.strftime("%Y-%m-%d")
 
-    tp1_rate = (
-        tp1_count
-        /
-        usable
-        *
-        100
+
+# ============================================================
+# BUILD TABLE
+# ============================================================
+
+table_rows = []
+
+for _, row in df.iterrows():
+
+    symbol = html.escape(
+        str(row["symbol"])
     )
 
-else:
-
-    tp1_rate = 0
-
-
-# ============================================================
-# TP2 RATE
-# ============================================================
-
-if usable > 0:
-
-    tp2_rate = (
-        tp2_count
-        /
-        usable
-        *
-        100
+    status = html.escape(
+        str(row["status"])
     )
 
-else:
-
-    tp2_rate = 0
-
-
-# ============================================================
-# SL BEFORE TP1 RATE
-# ============================================================
-
-if usable > 0:
-
-    sl_rate = (
-        sl_before_tp1
-        /
-        usable
-        *
-        100
+    table_rows.append(
+        "<tr>"
+        f"<td><b>{symbol}</b></td>"
+        f"<td>{row['signal_date']}</td>"
+        f"<td>₹{row['entry']:.2f}</td>"
+        f"<td>₹{row['sl']:.2f}</td>"
+        f"<td>₹{row['tp1']:.2f}</td>"
+        f"<td>₹{row['tp2']:.2f}</td>"
+        f"<td><b>{status}</b></td>"
+        f"<td>{row['tp1_date']}</td>"
+        f"<td>{row['tp2_date']}</td>"
+        f"<td>{row['bars_to_tp1']}</td>"
+        f"<td>{row['bars_to_tp2']}</td>"
+        f"<td>{row['return_pct']:.2f}%</td>"
+        f"<td>{row['max_up_pct']:.2f}%</td>"
+        f"<td>{row['max_down_pct']:.2f}%</td>"
+        "</tr>"
     )
 
-else:
-
-    sl_rate = 0
+table_html = "\n".join(table_rows)
 
 
 # ============================================================
-# AVERAGE BARS
+# HTML DASHBOARD
 # ============================================================
 
-avg_bars_tp1 = results_df[
-    "bars_to_tp1"
-].dropna().mean()
-
-avg_bars_tp2 = results_df[
-    "bars_to_tp2"
-].dropna().mean()
-
-avg_bars_sl = results_df[
-    "bars_to_sl"
-].dropna().mean()
-
-avg_max_up = results_df[
-    "max_favourable_pct"
-].mean()
-
-avg_max_down = results_df[
-    "max_adverse_pct"
-].mean()
-
-
-# ============================================================
-# HTML TABLE
-# ============================================================
-
-rows_html = ""
-
-
-for _, row in results_df.iterrows():
-
-    status = str(
-        row["status"]
-    )
-
-
-    if status == "TP2":
-
-        badge = "green"
-
-    elif status == "TP1 → SL":
-
-        badge = "yellow"
-
-    elif status == "TP1 → OPEN":
-
-        badge = "yellow"
-
-    elif status == "SL BEFORE TP1":
-
-        badge = "red"
-
-    elif status == "OPEN":
-
-        badge = "blue"
-
-    else:
-
-        badge = "grey"
-
-
-    rows_html += f"""
-    <tr>
-
-        <td>
-            <b>{html.escape(str(row["symbol"]))}</b>
-        </td>
-
-        <td>
-            {row["signal_date"]}
-        </td>
-
-        <td>
-            {money(row["entry"])}
-        </td>
-
-        <td>
-            {money(row["sl"])}
-        </td>
-
-        <td>
-            {money(row["tp1"])}
-        </td>
-
-        <td>
-            {money(row["tp2"])}
-        </td>
-
-        <td>
-            <span class="badge {badge}">
-                {html.escape(status)}
-            </span>
-        </td>
-
-        <td>
-            {row["tp1_date"]
-             if pd.notna(row["tp1_date"])
-             else "-"}
-        </td>
-
-        <td>
-            {row["tp2_date"]
-             if pd.notna(row["tp2_date"])
-             else "-"}
-        </td>
-
-        <td>
-            {row["bars_to_tp1"]
-             if pd.notna(row["bars_to_tp1"])
-             else "-"}
-        </td>
-
-        <td>
-            {row["bars_to_tp2"]
-             if pd.notna(row["bars_to_tp2"])
-             else "-"}
-        </td>
-
-        <td>
-            {pct(row["return_pct"])}
-        </td>
-
-        <td>
-            {pct(row["max_favourable_pct"])}
-        </td>
-
-        <td>
-            {pct(row["max_adverse_pct"])}
-        </td>
-
-    </tr>
-    """
-
-
-# ============================================================
-# HTML
-# ============================================================
-
-html_page = f"""
+html_page = """
 <!DOCTYPE html>
 
 <html>
@@ -1110,19 +722,339 @@ html_page = f"""
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0">
 
-<title>
-John's Backtest V2
-</title>
+<title>John's Backtest V2</title>
 
 <style>
 
-body {{
-
+body {
     margin: 0;
-
     background: #090e1c;
-
     color: #e8edf7;
+    font-family: Arial, sans-serif;
+}
 
-    font-family:
-        Arial,
+.container {
+    padding: 20px;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: #9ca8bf;
+    margin-bottom: 20px;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(145px, 1fr));
+    gap: 12px;
+    margin-bottom: 25px;
+}
+
+.card {
+    background: #161c2d;
+    border: 1px solid #29334b;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+.title {
+    color: #9ba7bc;
+    font-size: 12px;
+}
+
+.value {
+    font-size: 23px;
+    font-weight: bold;
+    margin-top: 7px;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #151b2b;
+}
+
+th {
+    background: #11172a;
+    color: #aab4c9;
+    padding: 11px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+td {
+    padding: 9px;
+    border-top: 1px solid #29334b;
+    white-space: nowrap;
+}
+
+.note {
+    margin-top: 20px;
+    padding: 15px;
+    background: #11172a;
+    border-radius: 8px;
+    color: #929db2;
+    line-height: 1.6;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>📊 JOHN'S BACKTEST V2</h1>
+
+<div class="subtitle">
+EMA50 → Pullback → RSI → Volume → Confirmation
+<br>
+50% at TP1 → remaining 50% at TP2 or SL
+</div>
+
+<div class="cards">
+
+<div class="card">
+<div class="title">TOTAL SIGNALS</div>
+<div class="value">__TOTAL__</div>
+</div>
+
+<div class="card">
+<div class="title">TP1 HIT</div>
+<div class="value">__TP1__</div>
+</div>
+
+<div class="card">
+<div class="title">TP1 RATE</div>
+<div class="value">__TP1RATE__%</div>
+</div>
+
+<div class="card">
+<div class="title">TP2 HIT</div>
+<div class="value">__TP2__</div>
+</div>
+
+<div class="card">
+<div class="title">TP2 RATE</div>
+<div class="value">__TP2RATE__%</div>
+</div>
+
+<div class="card">
+<div class="title">SL BEFORE TP1</div>
+<div class="value">__SL__</div>
+</div>
+
+<div class="card">
+<div class="title">TP1 → SL</div>
+<div class="value">__TP1SL__</div>
+</div>
+
+<div class="card">
+<div class="title">TP1 → OPEN</div>
+<div class="value">__TP1OPEN__</div>
+</div>
+
+<div class="card">
+<div class="title">AVERAGE RETURN</div>
+<div class="value">__RETURN__%</div>
+</div>
+
+<div class="card">
+<div class="title">AVG BARS TP1</div>
+<div class="value">__BARSTP1__</div>
+</div>
+
+<div class="card">
+<div class="title">AVG BARS TP2</div>
+<div class="value">__BARSTP2__</div>
+</div>
+
+</div>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+<th>STOCK</th>
+<th>SIGNAL</th>
+<th>ENTRY</th>
+<th>SL</th>
+<th>TP1</th>
+<th>TP2</th>
+<th>RESULT</th>
+<th>TP1 DATE</th>
+<th>TP2 DATE</th>
+<th>BARS TP1</th>
+<th>BARS TP2</th>
+<th>RETURN</th>
+<th>MAX UP</th>
+<th>MAX DOWN</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+__TABLE__
+
+</tbody>
+
+</table>
+
+</div>
+
+<div class="note">
+
+<b>Backtest V2 methodology</b>
+
+<br><br>
+
+The test uses only candles after the
+confirmation date.
+
+50% of the position is considered
+booked at TP1.
+
+The remaining 50% continues toward TP2
+or SL.
+
+If SL occurs before TP1, the complete
+position is treated as stopped.
+
+Maximum tracking period:
+20 trading bars.
+
+Same-candle ambiguity is handled
+conservatively.
+
+This is historical research and does
+not guarantee future performance.
+
+</div>
+
+</div>
+
+</body>
+
+</html>
+"""
+
+
+# ============================================================
+# INSERT DATA INTO HTML
+# ============================================================
+
+html_page = html_page.replace(
+    "__TOTAL__",
+    str(total)
+)
+
+html_page = html_page.replace(
+    "__TP1__",
+    str(tp1_count)
+)
+
+html_page = html_page.replace(
+    "__TP1RATE__",
+    f"{tp1_rate:.2f}"
+)
+
+html_page = html_page.replace(
+    "__TP2__",
+    str(tp2_count)
+)
+
+html_page = html_page.replace(
+    "__TP2RATE__",
+    f"{tp2_rate:.2f}"
+)
+
+html_page = html_page.replace(
+    "__SL__",
+    str(sl_before_tp1)
+)
+
+html_page = html_page.replace(
+    "__TP1SL__",
+    str(tp1_then_sl)
+)
+
+html_page = html_page.replace(
+    "__TP1OPEN__",
+    str(tp1_open)
+)
+
+html_page = html_page.replace(
+    "__RETURN__",
+    f"{average_return:.2f}"
+)
+
+html_page = html_page.replace(
+    "__BARSTP1__",
+    f"{avg_bars_tp1:.2f}"
+)
+
+html_page = html_page.replace(
+    "__BARSTP2__",
+    f"{avg_bars_tp2:.2f}"
+)
+
+html_page = html_page.replace(
+    "__TABLE__",
+    table_html
+)
+
+
+# ============================================================
+# SAVE HTML
+# ============================================================
+
+OUTPUT_HTML.write_text(
+    html_page,
+    encoding="utf-8"
+)
+
+
+# ============================================================
+# FINAL REPORT
+# ============================================================
+
+print()
+print("=" * 60)
+print("BACKTEST V2 COMPLETE")
+print("=" * 60)
+
+print(f"Total signals       : {total}")
+print(f"TP1 hit             : {tp1_count}")
+print(f"TP1 hit rate        : {tp1_rate:.2f}%")
+print(f"TP2 hit             : {tp2_count}")
+print(f"TP2 hit rate        : {tp2_rate:.2f}%")
+print(f"SL before TP1       : {sl_before_tp1}")
+print(f"TP1 -> SL           : {tp1_then_sl}")
+print(f"TP1 -> OPEN         : {tp1_open}")
+print(f"No future data      : {no_future}")
+print(f"Average return      : {average_return:.2f}%")
+print(f"Average bars TP1    : {avg_bars_tp1:.2f}")
+print(f"Average bars TP2    : {avg_bars_tp2:.2f}")
+print(f"Average max upside  : {avg_max_up:.2f}%")
+print(f"Average max downside: {avg_max_down:.2f}%")
+
+print()
+print(f"CSV : {OUTPUT_CSV}")
+print(f"HTML: {OUTPUT_HTML}")
+
+print()
+print("Backtest V2 finished successfully.")
+print("=" * 60)
