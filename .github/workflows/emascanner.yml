@@ -19,45 +19,116 @@ jobs:
 
     steps:
 
+      # ----------------------------------------------------
+      # 1. Checkout repository
+      # ----------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v5
+
+
+      # ----------------------------------------------------
+      # 2. Setup Python
+      # ----------------------------------------------------
 
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
+
+      # ----------------------------------------------------
+      # 3. Install Python packages
+      # ----------------------------------------------------
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+
+      # ----------------------------------------------------
+      # 4. Download real NSE 500 historical data
+      # ----------------------------------------------------
+
       - name: Download NSE 500 data
         run: |
           python nse_data_downloader.py
+
+
+      # ----------------------------------------------------
+      # 5. Run John's EMA Pullback Scanner
+      # ----------------------------------------------------
 
       - name: Run John's Scanner
         run: |
           python scanner.py
 
+
+      # ----------------------------------------------------
+      # 6. Run John's Backtest Engine
+      # ----------------------------------------------------
+
+      - name: Run John's Backtest
+        run: |
+          python backtest.py
+
+
+      # ----------------------------------------------------
+      # 7. Show results in GitHub Actions log
+      # ----------------------------------------------------
+
       - name: Show scanner output
         run: |
-          echo "Scanner completed."
+
+          echo "=========================================="
+          echo "JOHN'S SCANNER COMPLETED"
+          echo "=========================================="
+
           echo ""
           echo "Universe:"
           wc -l universe.csv
+
           echo ""
-          echo "OHLCV:"
+          echo "OHLCV data:"
           wc -l data/sample_ohlcv.csv
+
           echo ""
           echo "Output files:"
           ls -lah output/
+
+          echo ""
+          echo "=========================================="
+          echo "BACKTEST RESULTS"
+          echo "=========================================="
+
+          if [ -f output/backtest_results.csv ]; then
+            echo "Backtest CSV created successfully."
+            wc -l output/backtest_results.csv
+          else
+            echo "WARNING: Backtest CSV not found."
+          fi
+
+          if [ -f output/backtest.html ]; then
+            echo "Backtest dashboard created successfully."
+          else
+            echo "WARNING: Backtest HTML not found."
+          fi
+
+
+      # ----------------------------------------------------
+      # 8. Publish dashboard files to GitHub Pages
+      # ----------------------------------------------------
 
       - name: Upload dashboard to Pages
         uses: actions/upload-pages-artifact@v4
         with:
           path: output/
 
+
+  # ========================================================
+  # DEPLOY JOB
+  # ========================================================
 
   deploy:
 
@@ -72,6 +143,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
+
+
+      # ----------------------------------------------------
+      # 9. Deploy to GitHub Pages
+      # ----------------------------------------------------
 
       - name: Deploy to GitHub Pages
         id: deployment
