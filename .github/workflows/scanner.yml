@@ -69,7 +69,7 @@ jobs:
       # 6. Run John's Backtest Engine
       # ----------------------------------------------------
 
-      - name: Run John's Backtest
+      - name: Run John's  No-SL Backtest
         run: |
           python backtest.py
 
