@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: "*/15 * * * 1-5"
+    - cron: "30 10 * * 1-5"
 
 permissions:
   contents: read
@@ -32,6 +32,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Download NSE 500 data
+        run: |
+          python nse_data_downloader.py
+
       - name: Run John's Scanner
         run: |
           python scanner.py
@@ -39,13 +43,21 @@ jobs:
       - name: Show scanner output
         run: |
           echo "Scanner completed."
-          echo "Files generated:"
-          ls -la output/
+          echo ""
+          echo "Universe:"
+          wc -l universe.csv
+          echo ""
+          echo "OHLCV:"
+          wc -l data/sample_ohlcv.csv
+          echo ""
+          echo "Output files:"
+          ls -lah output/
 
       - name: Upload dashboard to Pages
         uses: actions/upload-pages-artifact@v4
         with:
           path: output/
+
 
   deploy:
 
@@ -54,7 +66,9 @@ jobs:
     runs-on: ubuntu-latest
 
     environment:
+
       name: github-pages
+
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
