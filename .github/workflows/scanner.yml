@@ -20,7 +20,7 @@ jobs:
     steps:
 
       # ==========================================
-      # CHECKOUT
+      # CHECKOUT REPOSITORY
       # ==========================================
 
       - name: Checkout repository
@@ -28,7 +28,7 @@ jobs:
 
 
       # ==========================================
-      # PYTHON
+      # SETUP PYTHON
       # ==========================================
 
       - name: Setup Python
@@ -61,7 +61,7 @@ jobs:
 
 
       # ==========================================
-      # RUN JOHN'S LIVE SCANNER
+      # RUN JOHN'S SCANNER
       # ==========================================
 
       - name: Run John's Scanner
@@ -74,7 +74,7 @@ jobs:
 
 
       # ==========================================
-      # ORIGINAL BACKTEST
+      # RUN ORIGINAL BACKTEST
       # ==========================================
 
       - name: Run John's Backtest
@@ -87,20 +87,20 @@ jobs:
 
 
       # ==========================================
-      # NO STOP-LOSS BACKTEST
+      # RUN BACKTEST V3
       # ==========================================
 
-      - name: Run John's No-SL Backtest
+      - name: Run John's Backtest V3
         run: |
           echo "=========================================="
-          echo "RUNNING NO STOP-LOSS BACKTEST"
+          echo "RUNNING JOHN'S BACKTEST V3"
           echo "=========================================="
 
-          python backtest_no_sl.py
+          python backtest_v3.py
 
 
       # ==========================================
-      # SHOW OUTPUT
+      # SHOW SCANNER OUTPUT
       # ==========================================
 
       - name: Show scanner output
@@ -140,6 +140,13 @@ jobs:
           ls -lah output/
 
 
+      # ==========================================
+      # SHOW ORIGINAL BACKTEST
+      # ==========================================
+
+      - name: Show original backtest output
+        run: |
+
           echo ""
           echo "=========================================="
           echo "ORIGINAL BACKTEST"
@@ -154,39 +161,57 @@ jobs:
           fi
 
 
+      # ==========================================
+      # SHOW BACKTEST V3
+      # ==========================================
+
+      - name: Show Backtest V3 output
+        run: |
+
           echo ""
           echo "=========================================="
-          echo "NO STOP-LOSS BACKTEST"
+          echo "JOHN'S BACKTEST V3 OUTPUT"
           echo "=========================================="
 
-          if [ -f output/backtest_no_sl_results.csv ]; then
-            echo "No-SL backtest CSV:"
-            wc -l output/backtest_no_sl_results.csv
+          if [ -f output/backtest_v3_results.csv ]; then
+            echo ""
+            echo "Backtest V3 CSV created successfully."
+            wc -l output/backtest_v3_results.csv
           else
+            echo ""
             echo "WARNING:"
-            echo "No-SL backtest CSV not found."
+            echo "Backtest V3 CSV not found."
           fi
 
 
-          echo ""
-          echo "=========================================="
-          echo "NO STOP-LOSS HTML"
-          echo "=========================================="
-
-          if [ -f output/backtest_no_sl.html ]; then
-            echo "No-SL dashboard created successfully."
+          if [ -f output/backtest_v3.html ]; then
+            echo ""
+            echo "Backtest V3 HTML created successfully."
           else
+            echo ""
             echo "WARNING:"
-            echo "No-SL dashboard not found."
+            echo "Backtest V3 HTML not found."
           fi
 
 
+      # ==========================================
+      # DISPLAY FINAL BACKTEST FILES
+      # ==========================================
+
+      - name: Show final output
+        run: |
+
           echo ""
           echo "=========================================="
-          echo "FINAL OUTPUT"
+          echo "FINAL OUTPUT FILES"
           echo "=========================================="
 
           find output -maxdepth 1 -type f -printf "%f\n" | sort
+
+          echo ""
+          echo "=========================================="
+          echo "JOHN'S SCANNER TEST FINISHED"
+          echo "=========================================="
 
 
       # ==========================================
@@ -200,7 +225,7 @@ jobs:
 
 
   # ==========================================
-  # DEPLOY
+  # DEPLOY TO GITHUB PAGES
   # ==========================================
 
   deploy:
