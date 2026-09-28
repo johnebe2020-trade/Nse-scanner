@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>EMA50 RSI Scan</title>
+<style>body{font-family:Arial;background:#111;color:#eee;margin:8px;font-size:13px}
+select,input{background:#222;color:#eee;border:1px solid #444;padding:6px;margin:2px}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #333;padding:6px;text-align:left}
+th{cursor:pointer;background:#1c1c1c;position:sticky;top:0}
+.CROSS{color:#4caf50;font-weight:bold}.NEAR{color:#ff9800;font-weight:bold}a{color:#6cf;text-decoration:none}</style></head><body>
+<h3>EMA50 + RSI(45-50) Scan</h3><div>28 Sep 2026 10:37 IST | scanned 264 stocks</div>
+<select id="k"><option value="">All</option><option>CROSS</option><option>NEAR</option></select>
+<select id="t"><option value="">D + 4H</option><option>D</option><option>4H</option></select>
+<select id="s"><option value="">All sectors</option></select>
+<input id="q" placeholder="search stock">
+<table><thead><tr><th data-k="kind">Signal</th><th data-k="symbol">Stock</th><th data-k="tf">TF</th>
+<th data-k="sector">Sector</th><th data-k="rsi">RSI</th><th data-k="gap">Gap%</th></tr></thead><tbody id="b"></tbody></table>
+<script>
+const D=[{"sector": "FMCG", "symbol": "HONASA", "tf": "4H", "kind": "NEAR", "rsi": 45.1, "gap": -1.23}, {"sector": "Realty", "symbol": "SIGNATURE", "tf": "D", "kind": "CROSS", "rsi": 46.7, "gap": -1.95}, {"sector": "Defence-Rail", "symbol": "TITAGARH", "tf": "D", "kind": "NEAR", "rsi": 46.1, "gap": -1.48}, {"sector": "Chemicals", "symbol": "TATACHEM", "tf": "D", "kind": "NEAR", "rsi": 48.9, "gap": -1.5}, {"sector": "Chemicals", "symbol": "TATACHEM", "tf": "4H", "kind": "NEAR", "rsi": 47.4, "gap": -0.83}];let sk="kind",asc=true;const $=id=>document.getElementById(id);
+[...new Set(D.map(x=>x.sector))].sort().forEach(v=>$("s").add(new Option(v,v)));
+function draw(){
+ let r=D.filter(x=>(!$("k").value||x.kind==$("k").value)&&(!$("t").value||x.tf==$("t").value)&&(!$("s").value||x.sector==$("s").value)&&x.symbol.includes($("q").value.toUpperCase()));
+ r.sort((a,b)=>(a[sk]>b[sk]?1:-1)*(asc?1:-1));
+ $("b").innerHTML=r.map(x=>`<tr><td class="${x.kind}">${x.kind}</td><td><a href="https://in.tradingview.com/chart/?symbol=NSE:${x.symbol}" target="_blank">${x.symbol}</a></td><td>${x.tf}</td><td>${x.sector}</td><td>${x.rsi}</td><td>${x.gap}</td></tr>`).join("");}
+["k","t","s","q"].forEach(i=>$(i).oninput=draw);
+document.querySelectorAll("th").forEach(h=>h.onclick=()=>{const k=h.dataset.k;asc=(sk==k)?!asc:true;sk=k;draw()});
+draw();
+</script></body></html>
