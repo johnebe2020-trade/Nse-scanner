@@ -1,0 +1,19 @@
+name: EMA50 RSI Scan
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"     # 1:30 PM IST
+    - cron: "30 10 * * 1-5"   # 4:00 PM IST
+  workflow_dispatch:
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas
+      - run: python ema50_rsi_scanner.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
