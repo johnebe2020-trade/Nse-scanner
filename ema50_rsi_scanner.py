@@ -125,7 +125,7 @@ draw();
 
 
 def load_universe():
-    files = glob.glob("universe/*.csv")
+    files = glob.glob("universe/*.csv") + glob.glob("ind_*.csv")
     if not files:
         df = pd.read_csv("stocks.csv")
         return list(zip(df["symbol"], df["sector"]))
