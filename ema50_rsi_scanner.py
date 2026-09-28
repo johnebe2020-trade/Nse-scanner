@@ -1,5 +1,6 @@
-import os, time, json, datetime, requests
+import os, time, json, glob, datetime, requests
 import pandas as pd
+from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor
 
 EMA_LEN, RSI_LEN, VOL_LEN = 50, 14, 20
@@ -11,7 +12,7 @@ HDR = {"User-Agent": "Mozilla/5.0"}
 
 
 def fetch(sym, rng, interval):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}.NS"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(sym, safe='')}.NS"
     for _ in range(3):
         try:
             r = requests.get(url, params={"range": rng, "interval": interval},
@@ -123,9 +124,23 @@ draw();
         f.write(html)
 
 
+def load_universe():
+    files = glob.glob("universe/*.csv")
+    if not files:
+        df = pd.read_csv("stocks.csv")
+        return list(zip(df["symbol"], df["sector"]))
+    frames = []
+    for f in files:
+        d = pd.read_csv(f)
+        d.columns = [c.strip() for c in d.columns]
+        frames.append(d[["Symbol", "Industry"]].rename(
+            columns={"Symbol": "symbol", "Industry": "sector"}))
+    df = pd.concat(frames).dropna().drop_duplicates("symbol")
+    return list(zip(df["symbol"].str.strip(), df["sector"].str.strip()))
+
+
 def main():
-    stocks = pd.read_csv("stocks.csv").drop_duplicates("symbol")
-    rows = list(zip(stocks["symbol"], stocks["sector"]))
+    rows = load_universe()
     with ThreadPoolExecutor(max_workers=4) as ex:
         hits = [h for r in ex.map(scan, rows) for h in r]
     write_html(hits, len(rows))
