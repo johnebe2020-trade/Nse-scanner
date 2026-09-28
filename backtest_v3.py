@@ -1,34 +1,20 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import html
 
 # ============================================================
 # JOHN'S BACKTEST V3
-# EMA50 CROSS → PULLBACK → RSI → VOLUME → CONFIRMATION
-# ============================================================
-#
-# ENTRY:
-# Confirmation candle CLOSE
-#
-# STOP LOSS:
-# NONE
-#
-# HOLDING PERIOD:
-# Maximum 60 bars
-#
-# POSITION:
-# 50% TP1
-# 50% TP2
-#
+# EMA50 CROSS -> PULLBACK -> RSI -> VOLUME -> CONFIRMATION
+# NO STOP LOSS
 # ============================================================
 
 ROOT = Path(__file__).resolve().parent
 
 DATA_FILE = ROOT / "data" / "sample_ohlcv.csv"
+OUTPUT_DIR = ROOT / "output"
 
-OUTPUT_CSV = ROOT / "output" / "backtest_v3_results.csv"
-OUTPUT_HTML = ROOT / "output" / "backtest_v3.html"
+OUTPUT_CSV = OUTPUT_DIR / "backtest_v3_results.csv"
+OUTPUT_HTML = OUTPUT_DIR / "backtest_v3.html"
 
 # ============================================================
 # SETTINGS
@@ -50,11 +36,12 @@ MAX_HOLDING_BARS = 60
 TP1_RR = 1.0
 TP2_RR = 2.0
 
+
 # ============================================================
-# HELPERS
+# RSI - WILDER
 # ============================================================
 
-def rsi_wilder(series, length=14):
+def calculate_rsi(series, length=14):
 
     delta = series.diff()
 
@@ -75,17 +62,19 @@ def rsi_wilder(series, length=14):
 
     rs = avg_gain / avg_loss.replace(0, np.nan)
 
-    rsi = 100 - (100 / (1 + rs))
+    return 100 - (100 / (1 + rs))
 
-    return rsi
 
+# ============================================================
+# FIND COLUMN
+# ============================================================
 
 def find_column(df, names):
 
-    mapping = {
-        str(c).strip().lower(): c
-        for c in df.columns
-    }
+    mapping = {}
+
+    for column in df.columns:
+        mapping[str(column).strip().lower()] = column
 
     for name in names:
 
@@ -102,25 +91,26 @@ def find_column(df, names):
 # ============================================================
 
 print()
-print("================================================")
+print("==============================================")
 print("JOHN'S BACKTEST V3")
-print("================================================")
+print("==============================================")
 print()
 
 if not DATA_FILE.exists():
 
     raise FileNotFoundError(
-        f"OHLCV file not found:\n{DATA_FILE}"
+        f"OHLCV file not found: {DATA_FILE}"
     )
 
-print("Loading data:")
+print("Loading:")
 print(DATA_FILE)
 print()
 
 df = pd.read_csv(DATA_FILE)
 
-print(f"Rows loaded: {len(df):,}")
+print("Rows loaded:", len(df))
 print()
+
 
 # ============================================================
 # DETECT COLUMNS
@@ -161,6 +151,7 @@ volume_col = find_column(
     ["volume", "vol"]
 )
 
+
 print("Detected columns:")
 print("--------------------------------")
 print("Symbol :", symbol_col)
@@ -171,6 +162,7 @@ print("Low    :", low_col)
 print("Close  :", close_col)
 print("Volume :", volume_col)
 print()
+
 
 required = [
     symbol_col,
@@ -185,8 +177,9 @@ required = [
 if any(x is None for x in required):
 
     raise ValueError(
-        "Could not identify all required OHLCV columns."
+        "Required OHLCV column missing."
     )
+
 
 # ============================================================
 # CLEAN DATA
@@ -210,6 +203,7 @@ for column in [
         errors="coerce"
     )
 
+
 df = df.dropna(
     subset=[
         symbol_col,
@@ -222,19 +216,16 @@ df = df.dropna(
     ]
 )
 
+
 df = df.sort_values(
     [symbol_col, date_col]
 ).reset_index(drop=True)
 
-print(
-    f"Clean rows: {len(df):,}"
-)
 
-print(
-    f"Stocks: {df[symbol_col].nunique():,}"
-)
-
+print("Clean rows:", len(df))
+print("Stocks:", df[symbol_col].nunique())
 print()
+
 
 # ============================================================
 # RESULTS
@@ -244,8 +235,9 @@ results = []
 
 total_stocks = df[symbol_col].nunique()
 
+
 # ============================================================
-# PROCESS EACH STOCK
+# PROCESS STOCKS
 # ============================================================
 
 for stock_number, (symbol, stock) in enumerate(
@@ -259,8 +251,9 @@ for stock_number, (symbol, stock) in enumerate(
         date_col
     ).reset_index(drop=True)
 
+
     # --------------------------------------------------------
-    # INDICATORS
+    # EMA50
     # --------------------------------------------------------
 
     stock["ema50"] = stock[close_col].ewm(
@@ -269,10 +262,20 @@ for stock_number, (symbol, stock) in enumerate(
         min_periods=EMA_LENGTH
     ).mean()
 
-    stock["rsi"] = rsi_wilder(
+
+    # --------------------------------------------------------
+    # RSI
+    # --------------------------------------------------------
+
+    stock["rsi"] = calculate_rsi(
         stock[close_col],
         RSI_LENGTH
     )
+
+
+    # --------------------------------------------------------
+    # VOLUME
+    # --------------------------------------------------------
 
     stock["volume_avg"] = stock[
         volume_col
@@ -281,10 +284,17 @@ for stock_number, (symbol, stock) in enumerate(
         min_periods=VOLUME_LENGTH
     ).mean()
 
+
     stock["volume_ratio"] = (
         stock[volume_col]
-        / stock["volume_avg"]
+        /
+        stock["volume_avg"]
     )
+
+
+    # --------------------------------------------------------
+    # EMA CROSS
+    # --------------------------------------------------------
 
     stock["ema_cross"] = (
         (stock[close_col] > stock["ema50"])
@@ -296,17 +306,22 @@ for stock_number, (symbol, stock) in enumerate(
         )
     )
 
-    # --------------------------------------------------------
-    # SCAN
-    # --------------------------------------------------------
 
     n = len(stock)
 
-    for i in range(EMA_LENGTH + VOLUME_LENGTH, n):
 
-        # ====================================================
-        # 1. EMA50 CROSS
-        # ====================================================
+    # ========================================================
+    # SCAN
+    # ========================================================
+
+    for i in range(
+        EMA_LENGTH + VOLUME_LENGTH,
+        n
+    ):
+
+        # ----------------------------------------------------
+        # FIND RECENT EMA CROSS
+        # ----------------------------------------------------
 
         cross_index = None
 
@@ -324,14 +339,17 @@ for stock_number, (symbol, stock) in enumerate(
             if bool(stock.iloc[j]["ema_cross"]):
 
                 cross_index = j
+
                 break
+
 
         if cross_index is None:
             continue
 
-        # ====================================================
-        # 2. PULLBACK
-        # ====================================================
+
+        # ----------------------------------------------------
+        # FIND PULLBACK
+        # ----------------------------------------------------
 
         pullback_index = None
 
@@ -341,6 +359,7 @@ for stock_number, (symbol, stock) in enumerate(
             i,
             cross_index + MAX_PULLBACK_BARS
         )
+
 
         for j in range(
             pullback_start,
@@ -361,14 +380,17 @@ for stock_number, (symbol, stock) in enumerate(
             if distance <= PULLBACK_TOLERANCE:
 
                 pullback_index = j
+
                 break
+
 
         if pullback_index is None:
             continue
 
-        # ====================================================
-        # 3. RSI > 50
-        # ====================================================
+
+        # ----------------------------------------------------
+        # RSI
+        # ----------------------------------------------------
 
         rsi_value = stock.iloc[i]["rsi"]
 
@@ -378,9 +400,10 @@ for stock_number, (symbol, stock) in enumerate(
         if rsi_value <= 50:
             continue
 
-        # ====================================================
-        # 4. VOLUME
-        # ====================================================
+
+        # ----------------------------------------------------
+        # VOLUME
+        # ----------------------------------------------------
 
         volume_ratio = stock.iloc[i][
             "volume_ratio"
@@ -392,40 +415,49 @@ for stock_number, (symbol, stock) in enumerate(
         if volume_ratio < VOLUME_MULTIPLIER:
             continue
 
-        # ====================================================
-        # 5. BULLISH CONFIRMATION
-        # ====================================================
+
+        # ----------------------------------------------------
+        # BULLISH CONFIRMATION
+        # ----------------------------------------------------
 
         current_open = stock.iloc[i][open_col]
+
         current_close = stock.iloc[i][close_col]
 
         if current_close <= current_open:
             continue
 
-        # ====================================================
-        # 6. ENTRY
-        # ====================================================
+
+        # ----------------------------------------------------
+        # ENTRY
+        # ----------------------------------------------------
 
         entry_index = i
 
         entry_date = stock.iloc[i][date_col]
 
-        entry = float(
-            current_close
-        )
+        entry = float(current_close)
+
 
         # ----------------------------------------------------
-        # RISK MODEL
+        # PULLBACK LOW
         # ----------------------------------------------------
 
         pullback_low = float(
             stock.iloc[pullback_index][low_col]
         )
 
+
         risk = entry - pullback_low
+
 
         if risk <= 0:
             continue
+
+
+        # ----------------------------------------------------
+        # TARGETS
+        # ----------------------------------------------------
 
         tp1 = entry + (
             risk * TP1_RR
@@ -435,14 +467,16 @@ for stock_number, (symbol, stock) in enumerate(
             risk * TP2_RR
         )
 
-        # ====================================================
-        # 7. FUTURE DATA
-        # ====================================================
+
+        # ----------------------------------------------------
+        # FUTURE DATA
+        # ----------------------------------------------------
 
         future = stock.iloc[
             entry_index + 1:
             entry_index + 1 + MAX_HOLDING_BARS
         ].copy()
+
 
         if future.empty:
 
@@ -508,9 +542,10 @@ for stock_number, (symbol, stock) in enumerate(
 
             continue
 
-        # ====================================================
-        # TRACK TRADE
-        # ====================================================
+
+        # ----------------------------------------------------
+        # TRACK FUTURE
+        # ----------------------------------------------------
 
         tp1_hit = False
         tp2_hit = False
@@ -526,6 +561,7 @@ for stock_number, (symbol, stock) in enumerate(
 
         last_close = entry
         last_date = entry_date
+
 
         for bar_number, (_, candle) in enumerate(
             future.iterrows(),
@@ -546,8 +582,9 @@ for stock_number, (symbol, stock) in enumerate(
 
             current_date = candle[date_col]
 
+
             # ------------------------------------------------
-            # MFE / MAE
+            # MAX UPSIDE / DOWNSIDE
             # ------------------------------------------------
 
             max_high = max(
@@ -561,16 +598,15 @@ for stock_number, (symbol, stock) in enumerate(
             )
 
             last_close = close
+
             last_date = current_date
+
 
             # ------------------------------------------------
             # TP1
             # ------------------------------------------------
 
-            if (
-                not tp1_hit
-                and high >= tp1
-            ):
+            if not tp1_hit and high >= tp1:
 
                 tp1_hit = True
 
@@ -578,14 +614,12 @@ for stock_number, (symbol, stock) in enumerate(
 
                 tp1_date = current_date
 
+
             # ------------------------------------------------
             # TP2
             # ------------------------------------------------
 
-            if (
-                not tp2_hit
-                and high >= tp2
-            ):
+            if not tp2_hit and high >= tp2:
 
                 tp2_hit = True
 
@@ -595,9 +629,10 @@ for stock_number, (symbol, stock) in enumerate(
 
                 break
 
-        # ====================================================
-        # EXIT / RETURN
-        # ====================================================
+
+        # ----------------------------------------------------
+        # CALCULATE RETURN
+        # ----------------------------------------------------
 
         if tp2_hit:
 
@@ -625,6 +660,7 @@ for stock_number, (symbol, stock) in enumerate(
                 0.50 * tp2_return
             )
 
+
         elif tp1_hit:
 
             status = "TP1 HIT"
@@ -651,6 +687,7 @@ for stock_number, (symbol, stock) in enumerate(
                 0.50 * remaining_return
             )
 
+
         else:
 
             status = "OPEN"
@@ -665,9 +702,10 @@ for stock_number, (symbol, stock) in enumerate(
                 * 100
             )
 
-        # ====================================================
-        # UPSIDE / DOWNSIDE
-        # ====================================================
+
+        # ----------------------------------------------------
+        # MAX UPSIDE / DOWNSIDE
+        # ----------------------------------------------------
 
         max_upside_pct = (
             (max_high - entry)
@@ -681,14 +719,14 @@ for stock_number, (symbol, stock) in enumerate(
             * 100
         )
 
-        # ====================================================
+
+        # ----------------------------------------------------
         # SAVE TRADE
-        # ====================================================
+        # ----------------------------------------------------
 
         results.append({
 
-            "symbol":
-                symbol,
+            "symbol": symbol,
 
             "ema_cross_date":
                 stock.iloc[cross_index][date_col],
@@ -746,6 +784,7 @@ for stock_number, (symbol, stock) in enumerate(
 
         })
 
+
     # --------------------------------------------------------
     # PROGRESS
     # --------------------------------------------------------
@@ -756,30 +795,38 @@ for stock_number, (symbol, stock) in enumerate(
     ):
 
         print(
-            f"Processed "
-            f"{stock_number:,}/"
-            f"{total_stocks:,} stocks | "
-            f"Signals: {len(results):,}"
+            "Processed "
+            + str(stock_number)
+            + "/"
+            + str(total_stocks)
+            + " stocks | Signals: "
+            + str(len(results))
         )
 
+
 # ============================================================
-# RESULTS DATAFRAME
+# CREATE RESULTS
 # ============================================================
 
-results_df = pd.DataFrame(results)
-
-OUTPUT_CSV.parent.mkdir(
+OUTPUT_DIR.mkdir(
     parents=True,
     exist_ok=True
 )
 
+
+results_df = pd.DataFrame(results)
+
+
+# ============================================================
+# NO SIGNALS
+# ============================================================
+
 if results_df.empty:
 
     print()
-    print("============================================")
+    print("==============================================")
     print("NO SIGNALS FOUND")
-    print("============================================")
-    print()
+    print("==============================================")
 
     results_df.to_csv(
         OUTPUT_CSV,
@@ -787,6 +834,7 @@ if results_df.empty:
     )
 
     raise SystemExit(0)
+
 
 # ============================================================
 # STATISTICS
@@ -815,6 +863,7 @@ no_future_count = (
     == "NO FUTURE DATA"
 ).sum()
 
+
 tp1_rate = (
     tp1_count / total * 100
 )
@@ -823,30 +872,36 @@ tp2_rate = (
     tp2_count / total * 100
 )
 
+
 returns = pd.to_numeric(
     results_df["return_pct"],
     errors="coerce"
 ).dropna()
+
 
 bars_tp1 = pd.to_numeric(
     results_df["bars_to_tp1"],
     errors="coerce"
 ).dropna()
 
+
 bars_tp2 = pd.to_numeric(
     results_df["bars_to_tp2"],
     errors="coerce"
 ).dropna()
+
 
 upside = pd.to_numeric(
     results_df["max_upside_pct"],
     errors="coerce"
 ).dropna()
 
+
 downside = pd.to_numeric(
     results_df["max_downside_pct"],
     errors="coerce"
 ).dropna()
+
 
 average_return = (
     returns.mean()
@@ -854,11 +909,13 @@ average_return = (
     else 0
 )
 
+
 average_bars_tp1 = (
     bars_tp1.mean()
     if not bars_tp1.empty
     else 0
 )
+
 
 average_bars_tp2 = (
     bars_tp2.mean()
@@ -866,17 +923,20 @@ average_bars_tp2 = (
     else 0
 )
 
+
 average_upside = (
     upside.mean()
     if not upside.empty
     else 0
 )
 
+
 average_downside = (
     downside.mean()
     if not downside.empty
     else 0
 )
+
 
 # ============================================================
 # SAVE CSV
@@ -887,225 +947,94 @@ results_df.to_csv(
     index=False
 )
 
-# ============================================================
-# HTML TABLE
-# ============================================================
-
-rows = ""
-
-for _, row in results_df.iterrows():
-
-    rows += f"""
-<tr>
-
-<td>{html.escape(str(row["symbol"]))}</td>
-
-<td>{html.escape(str(row["ema_cross_date"]))}</td>
-
-<td>{html.escape(str(row["pullback_date"]))}</td>
-
-<td>{html.escape(str(row["entry_date"]))}</td>
-
-<td>{row["entry"]}</td>
-
-<td>{row["pullback_low"]}</td>
-
-<td>{row["risk"]}</td>
-
-<td>{row["tp1"]}</td>
-
-<td>{row["tp2"]}</td>
-
-<td>{html.escape(str(row["status"]))}</td>
-
-<td>{row["bars_to_tp1"]}</td>
-
-<td>{row["bars_to_tp2"]}</td>
-
-<td>{row["return_pct"]}</td>
-
-<td>{row["max_upside_pct"]}</td>
-
-<td>{row["max_downside_pct"]}</td>
-
-</tr>
-"""
 
 # ============================================================
-# HTML
+# CREATE SIMPLE HTML
 # ============================================================
 
-html_page = f"""
-<!DOCTYPE html>
+html_parts = []
 
-<html>
+html_parts.append("<!DOCTYPE html>")
+html_parts.append("<html>")
+html_parts.append("<head>")
+html_parts.append("<meta charset='UTF-8'>")
+html_parts.append("<title>John Backtest V3</title>")
 
-<head>
-
-<meta charset="UTF-8">
-
-<title>
-John's Backtest V3
-</title>
-
+html_parts.append("""
 <style>
-
-body {{
-
-background:#0b0f14;
-
-color:#e8eef5;
-
-font-family:Arial,sans-serif;
-
-margin:30px;
-
-}}
-
-h1 {{
-
-margin-bottom:5px;
-
-}}
-
-.subtitle {{
-
-color:#9aa7b5;
-
-margin-bottom:25px;
-
-}}
-
-.cards {{
-
-display:grid;
-
-grid-template-columns:
-repeat(auto-fit,minmax(180px,1fr));
-
-gap:15px;
-
-margin-bottom:30px;
-
-}}
-
-.card {{
-
-background:#151b23;
-
-border:1px solid #27313d;
-
-border-radius:12px;
-
-padding:18px;
-
-}}
-
-.label {{
-
-color:#8e9aaa;
-
-font-size:13px;
-
-}}
-
-.value {{
-
-font-size:25px;
-
-font-weight:bold;
-
-margin-top:7px;
-
-}}
-
-.table-container {{
-
-overflow-x:auto;
-
-}}
-
-table {{
-
-width:100%;
-
-border-collapse:collapse;
-
-background:#11161d;
-
-}}
-
-th {{
-
-background:#1b232d;
-
-padding:10px;
-
-text-align:left;
-
-white-space:nowrap;
-
-}}
-
-td {{
-
-padding:9px;
-
-border-bottom:
-1px solid #222a34;
-
-white-space:nowrap;
-
-}}
-
-tr:hover {{
-
-background:#18202a;
-
-}}
-
-.note {{
-
-margin-top:25px;
-
-padding:15px;
-
-background:#151b23;
-
-border-radius:10px;
-
-color:#aeb9c6;
-
-line-height:1.6;
-
-}}
-
+body {
+    background:#0b0f14;
+    color:#e8eef5;
+    font-family:Arial,sans-serif;
+    margin:30px;
+}
+
+.card {
+    display:inline-block;
+    background:#151b23;
+    border:1px solid #27313d;
+    border-radius:10px;
+    padding:15px;
+    margin:5px;
+    min-width:150px;
+}
+
+.label {
+    color:#9aa7b5;
+    font-size:12px;
+}
+
+.value {
+    font-size:24px;
+    font-weight:bold;
+    margin-top:5px;
+}
+
+table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:30px;
+}
+
+th {
+    background:#1b232d;
+    padding:8px;
+    white-space:nowrap;
+}
+
+td {
+    padding:8px;
+    border-bottom:1px solid #252d36;
+    white-space:nowrap;
+}
+
+.container {
+    overflow-x:auto;
+}
 </style>
+""")
 
-</head>
+html_parts.append("</head>")
+html_parts.append("<body>")
 
-<body>
+html_parts.append("<h1>JOHN'S BACKTEST V3</h1>")
 
-<h1>
-JOHN'S BACKTEST V3
-</h1>
+html_parts.append(
+    "<p>EMA50 Cross → Pullback → RSI → Volume → Bullish Confirmation</p>"
+)
 
-<div class="subtitle">
+html_parts.append(
+    "<p>Entry = Confirmation Candle Close | "
+    "Stop Loss = Disabled | "
+    "Maximum Holding = 60 bars</p>"
+)
 
-EMA50 Cross →
-Pullback →
-RSI →
-Volume →
-Bullish Confirmation
 
-<br><br>
+# ============================================================
+# CARDS
+# ============================================================
 
-Entry = <b>Confirmation Candle Close</b>
+def card(label, value):
 
-<br>
-
-Stop Loss = <b>Disabled</b>
-
-<br>
-
-Maximum H
+    return (
+        "<div cla
