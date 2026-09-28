@@ -1,11 +1,14 @@
-import os, time, requests
+import os, time, json, datetime, requests
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
 EMA_LEN, RSI_LEN, VOL_LEN = 50, 14, 20
 RSI_LO, RSI_HI = 45, 50
 VOL_MULT, LOOKBACK, NEAR_PCT = 1.5, 3, 1.5
+MIN_AVG_VOL = 100000
+PAGE = "https://johnebe2020-trade.github.io/Nse-scanner/"
 HDR = {"User-Agent": "Mozilla/5.0"}
+
 
 def fetch(sym, rng, interval):
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}.NS"
@@ -15,21 +18,27 @@ def fetch(sym, rng, interval):
                              headers=HDR, timeout=20)
             res = r.json()["chart"]["result"][0]
             q = res["indicators"]["quote"][0]
-            df = pd.DataFrame(q, index=pd.to_datetime(res["timestamp"], unit="s", utc=True)
-                              .tz_convert("Asia/Kolkata"))
+            idx = pd.to_datetime(res["timestamp"], unit="s", utc=True).tz_convert("Asia/Kolkata")
+            df = pd.DataFrame(q, index=idx)
             return df[["open", "high", "low", "close", "volume"]].dropna()
         except Exception:
             time.sleep(1.5)
     return None
+
 
 def to_4h(df):
     d = df.copy()
     d["day"] = d.index.date
     d["blk"] = d.groupby("day").cumcount() // 4
     g = d.groupby(["day", "blk"])
-    return pd.DataFrame({"open": g["open"].first(), "high": g["high"].max(),
-                         "low": g["low"].min(), "close": g["close"].last(),
-                         "volume": g["volume"].sum()})
+    return pd.DataFrame({
+        "open": g["open"].first(),
+        "high": g["high"].max(),
+        "low": g["low"].min(),
+        "close": g["close"].last(),
+        "volume": g["volume"].sum(),
+    })
+
 
 def check(df):
     if df is None or len(df) < EMA_LEN + 5:
@@ -53,10 +62,13 @@ def check(df):
         return "NEAR", r, gap
     return None
 
+
 def scan(row):
     sym, sec = row
     out = []
     d = fetch(sym, "1y", "1d")
+    if d is None or d["volume"].tail(20).mean() < MIN_AVG_VOL:
+        return []
     res = check(d)
     if res:
         out.append((sec, sym, "D", *res))
@@ -66,25 +78,59 @@ def scan(row):
         out.append((sec, sym, "4H", *res))
     return out
 
+
 def send(text):
-    tok, chat = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
+    tok = os.environ["TELEGRAM_BOT_TOKEN"]
+    chat = os.environ["TELEGRAM_CHAT_ID"]
     for i in range(0, len(text), 3800):
         requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
                       data={"chat_id": chat, "text": text[i:i + 3800]}, timeout=20)
 
+
+def write_html(hits, total):
+    os.makedirs("docs", exist_ok=True)
+    data = [{"sector": s, "symbol": y, "tf": tf, "kind": k,
+             "rsi": round(r, 1), "gap": round(g, 2)} for s, y, tf, k, r, g in hits]
+    ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+    meta = datetime.datetime.now(ist).strftime("%d %b %Y %H:%M IST") + f" | scanned {total} stocks"
+    html = """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>EMA50 RSI Scan</title>
+<style>body{font-family:Arial;background:#111;color:#eee;margin:8px;font-size:13px}
+select,input{background:#222;color:#eee;border:1px solid #444;padding:6px;margin:2px}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #333;padding:6px;text-align:left}
+th{cursor:pointer;background:#1c1c1c;position:sticky;top:0}
+.CROSS{color:#4caf50;font-weight:bold}.NEAR{color:#ff9800;font-weight:bold}a{color:#6cf;text-decoration:none}</style></head><body>
+<h3>EMA50 + RSI(45-50) Scan</h3><div>__META__</div>
+<select id="k"><option value="">All</option><option>CROSS</option><option>NEAR</option></select>
+<select id="t"><option value="">D + 4H</option><option>D</option><option>4H</option></select>
+<select id="s"><option value="">All sectors</option></select>
+<input id="q" placeholder="search stock">
+<table><thead><tr><th data-k="kind">Signal</th><th data-k="symbol">Stock</th><th data-k="tf">TF</th>
+<th data-k="sector">Sector</th><th data-k="rsi">RSI</th><th data-k="gap">Gap%</th></tr></thead><tbody id="b"></tbody></table>
+<script>
+const D=__DATA__;let sk="kind",asc=true;const $=id=>document.getElementById(id);
+[...new Set(D.map(x=>x.sector))].sort().forEach(v=>$("s").add(new Option(v,v)));
+function draw(){
+ let r=D.filter(x=>(!$("k").value||x.kind==$("k").value)&&(!$("t").value||x.tf==$("t").value)&&(!$("s").value||x.sector==$("s").value)&&x.symbol.includes($("q").value.toUpperCase()));
+ r.sort((a,b)=>(a[sk]>b[sk]?1:-1)*(asc?1:-1));
+ $("b").innerHTML=r.map(x=>`<tr><td class="${x.kind}">${x.kind}</td><td><a href="https://in.tradingview.com/chart/?symbol=NSE:${x.symbol}" target="_blank">${x.symbol}</a></td><td>${x.tf}</td><td>${x.sector}</td><td>${x.rsi}</td><td>${x.gap}</td></tr>`).join("");}
+["k","t","s","q"].forEach(i=>$(i).oninput=draw);
+document.querySelectorAll("th").forEach(h=>h.onclick=()=>{const k=h.dataset.k;asc=(sk==k)?!asc:true;sk=k;draw()});
+draw();
+</script></body></html>"""
+    html = html.replace("__DATA__", json.dumps(data)).replace("__META__", meta)
+    with open("docs/index.html", "w", encoding="utf-8") as f:
+        f.write(html)
+
+
 def main():
     stocks = pd.read_csv("stocks.csv").drop_duplicates("symbol")
     rows = list(zip(stocks["symbol"], stocks["sector"]))
-    with ThreadPoolExecutor(max_workers=6) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         hits = [h for r in ex.map(scan, rows) for h in r]
-    if not hits:
-        send("EMA50+RSI scan: koi CROSS/NEAR nahi mila.")
-        return
-    msg = f"EMA50 + RSI(45-50) scan: {len(hits)} signals\n"
-    for sec in sorted({h[0] for h in hits}):
-        msg += f"\n{sec}\n"
-        for _, sym, tf, kind, r, gap in sorted([h for h in hits if h[0] == sec], key=lambda x: (x[3], x[1])):
-            msg += f"  {kind} {sym} [{tf}] RSI {r:.1f} gap {gap:+.1f}%\n"
-    send(msg)
+    write_html(hits, len(rows))
+    n = sum(1 for h in hits if h[3] == "CROSS")
+    send(f"EMA50+RSI scan: {n} CROSS, {len(hits) - n} NEAR ({len(rows)} stocks)\n{PAGE}")
+
 
 main()
