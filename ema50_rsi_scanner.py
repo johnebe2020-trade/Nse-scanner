@@ -135,6 +135,26 @@ def fmt_ts(ts, tf):
     return s, int(ts.timestamp())
 
 
+def monthly_stats(dd, cur):
+    m = dd["close"].resample("ME").last().dropna()
+    if len(m) < 6:
+        return None
+    ret = m.pct_change().dropna()
+    ups, downs = ret[ret > 0], ret[ret < 0]
+    if len(ups) < 2 or len(downs) < 2:
+        return None
+    up_med, up_p75 = ups.median(), ups.quantile(0.75)
+    dn_med = downs.median()
+    return {
+        "tp1": round(cur * (1 + up_med), 1),
+        "tp2": round(cur * (1 + up_p75), 1),
+        "sl": round(cur * (1 + dn_med * 0.5), 1),
+        "avgup": round(up_med * 100, 1),
+        "avgdn": round(dn_med * 100, 1),
+        "months": len(ret),
+    }
+
+
 def scan(item):
     sym, sec = item
     key = KEYS.get(sym)
@@ -153,17 +173,22 @@ def scan(item):
                 "volume": [t["volume"].sum()]}, index=[t.index[0].normalize()])
             dd = pd.concat([dd, row])
     h52 = float(dd["high"].tail(252).max())
-    p52 = (float(dd["close"].iloc[-1]) / h52 - 1) * 100
+    cur = float(dd["close"].iloc[-1])
+    p52 = (cur / h52 - 1) * 100
+    ms = monthly_stats(dd, cur) or {}
     out = []
     for tf, frame in (("D", dd), ("4H", to_4h(hh) if hh is not None else None)):
         res = check(frame)
         if res:
             kind, r, gap, cts = res
             cs, cn = fmt_ts(cts, tf)
-            out.append({"sector": sec, "symbol": sym, "tf": tf, "kind": kind,
-                        "rsi": round(r, 1), "gap": round(gap, 2),
-                        "cross": cs, "cx": cn,
-                        "h52": round(h52, 1), "p52": round(p52, 1)})
+            row = {"sector": sec, "symbol": sym, "tf": tf, "kind": kind,
+                   "rsi": round(r, 1), "gap": round(gap, 2),
+                   "cross": cs, "cx": cn,
+                   "h52": round(h52, 1), "p52": round(p52, 1),
+                   "cur": round(cur, 1)}
+            row.update(ms)
+            out.append(row)
     return out
 
 
@@ -207,13 +232,13 @@ def write_html(hits, total):
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>EMA50 RSI Scan</title>
 <style>body{font-family:Arial;background:#111;color:#eee;margin:8px;font-size:13px}
 select,input{background:#222;color:#eee;border:1px solid #444;padding:6px;margin:2px}
-.w{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:760px}
+.w{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:980px}
 th,td{border-bottom:1px solid #333;padding:6px;text-align:left;white-space:nowrap}
 th{cursor:pointer;background:#1c1c1c;position:sticky;top:0}
 .CROSS{color:#4caf50;font-weight:bold}.NEAR{color:#ff9800;font-weight:bold}
-.hi{color:#4caf50}a{color:#6cf;text-decoration:none}.n{color:#888;font-size:11px}</style></head><body>
+.hi{color:#4caf50}.lo{color:#f44336}a{color:#6cf;text-decoration:none}.n{color:#888;font-size:11px}</style></head><body>
 <h3>EMA50 + RSI(45-50) Scan</h3><div>__META__</div>
-<div class="n">Cross time = candle open time (IST). 4H candle 13:15 closes at 15:30.</div>
+<div class="n">Cross time = candle open time (IST). TP1/TP2/SL are underlying price targets from historical monthly moves (not option premium).</div>
 <select id="k"><option value="">All</option><option>CROSS</option><option>NEAR</option></select>
 <select id="t"><option value="">D + 4H</option><option>D</option><option>4H</option></select>
 <select id="s"><option value="">All sectors</option></select>
@@ -221,6 +246,8 @@ th{cursor:pointer;background:#1c1c1c;position:sticky;top:0}
 <input id="q" placeholder="search stock">
 <div class="w"><table><thead><tr><th data-k="kind">Signal</th><th data-k="symbol">Stock</th><th data-k="tf">TF</th>
 <th data-k="cx">Cross time</th><th data-k="sector">Sector</th><th data-k="rsi">RSI</th><th data-k="gap">Gap%</th>
+<th data-k="cur">Price</th><th data-k="tp1">TP1</th><th data-k="tp2">TP2</th><th data-k="sl">SL</th>
+<th data-k="avgup">Avg Up%</th><th data-k="avgdn">Avg Dn%</th><th data-k="months">Months</th>
 <th data-k="h52">52W High</th><th data-k="p52">From 52W H%</th></tr></thead><tbody id="b"></tbody></table></div>
 <script>
 const D=__DATA__;let sk="kind",asc=true;const $=id=>document.getElementById(id);
@@ -228,7 +255,7 @@ const D=__DATA__;let sk="kind",asc=true;const $=id=>document.getElementById(id);
 function draw(){
  let r=D.filter(x=>(!$("k").value||x.kind==$("k").value)&&(!$("t").value||x.tf==$("t").value)&&(!$("s").value||x.sector==$("s").value)&&(!$("h").value||x.p52>=-Number($("h").value))&&x.symbol.includes($("q").value.toUpperCase()));
  r.sort((a,b)=>(a[sk]>b[sk]?1:-1)*(asc?1:-1));
- $("b").innerHTML=r.map(x=>`<tr><td class="${x.kind}">${x.kind}</td><td><a href="https://in.tradingview.com/chart/?symbol=NSE:${x.symbol}" target="_blank">${x.symbol}</a></td><td>${x.tf}</td><td>${x.cross||"-"}</td><td>${x.sector}</td><td>${x.rsi}</td><td>${x.gap}</td><td>${x.h52}</td><td class="${x.p52>=-5?"hi":""}">${x.p52}</td></tr>`).join("");}
+ $("b").innerHTML=r.map(x=>`<tr><td class="${x.kind}">${x.kind}</td><td><a href="https://in.tradingview.com/chart/?symbol=NSE:${x.symbol}" target="_blank">${x.symbol}</a></td><td>${x.tf}</td><td>${x.cross||"-"}</td><td>${x.sector}</td><td>${x.rsi}</td><td>${x.gap}</td><td>${x.cur??"-"}</td><td class="hi">${x.tp1??"-"}</td><td class="hi">${x.tp2??"-"}</td><td class="lo">${x.sl??"-"}</td><td>${x.avgup??"-"}</td><td>${x.avgdn??"-"}</td><td>${x.months??"-"}</td><td>${x.h52}</td><td class="${x.p52>=-5?"hi":""}">${x.p52}</td></tr>`).join("");}
 ["k","t","s","h","q"].forEach(i=>$(i).oninput=draw);
 document.querySelectorAll("th").forEach(h=>h.onclick=()=>{const k=h.dataset.k;asc=(sk==k)?!asc:true;sk=k;draw()});
 draw();
