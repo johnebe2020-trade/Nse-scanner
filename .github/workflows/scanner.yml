@@ -20,7 +20,7 @@ jobs:
     steps:
 
       # ==========================================
-      # CHECKOUT REPOSITORY
+      # CHECKOUT
       # ==========================================
 
       - name: Checkout repository
@@ -28,7 +28,7 @@ jobs:
 
 
       # ==========================================
-      # SETUP PYTHON
+      # PYTHON
       # ==========================================
 
       - name: Setup Python
@@ -53,50 +53,122 @@ jobs:
 
       - name: Download NSE 500 data
         run: |
+          echo ""
           echo "=========================================="
           echo "DOWNLOADING NSE 500 DATA"
           echo "=========================================="
+          echo ""
 
           python nse_data_downloader.py
 
 
       # ==========================================
-      # RUN JOHN'S SCANNER
+      # RUN JOHN'S LIVE SCANNER
       # ==========================================
 
       - name: Run John's Scanner
         run: |
+          echo ""
           echo "=========================================="
           echo "RUNNING JOHN'S SCANNER"
           echo "=========================================="
+          echo ""
 
           python scanner.py
 
 
       # ==========================================
-      # RUN ORIGINAL BACKTEST
+      # ORIGINAL BACKTEST
       # ==========================================
 
       - name: Run John's Backtest
         run: |
+          echo ""
           echo "=========================================="
           echo "RUNNING ORIGINAL BACKTEST"
           echo "=========================================="
+          echo ""
 
           python backtest.py
 
 
       # ==========================================
-      # RUN BACKTEST V3
+      # BACKTEST V3
       # ==========================================
 
       - name: Run John's Backtest V3
         run: |
+          echo ""
           echo "=========================================="
           echo "RUNNING JOHN'S BACKTEST V3"
           echo "=========================================="
+          echo ""
 
           python backtest_v3.py
+
+
+      # ==========================================
+      # BACKTEST V4
+      # ==========================================
+
+      - name: Run John's Backtest V4
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "RUNNING JOHN'S BACKTEST V4"
+          echo "EXIT MODEL COMPARISON"
+          echo "=========================================="
+          echo ""
+
+          python backtest_v4.py
+
+
+      # ==========================================
+      # SHOW UNIVERSE
+      # ==========================================
+
+      - name: Show universe information
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "UNIVERSE INFORMATION"
+          echo "=========================================="
+          echo ""
+
+          if [ -f universe.csv ]; then
+            echo "Universe file found:"
+            wc -l universe.csv
+          else
+            echo "WARNING: universe.csv not found"
+          fi
+
+
+      # ==========================================
+      # SHOW OHLCV DATA
+      # ==========================================
+
+      - name: Show OHLCV information
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "OHLCV DATA INFORMATION"
+          echo "=========================================="
+          echo ""
+
+          if [ -f data/sample_ohlcv.csv ]; then
+            echo "OHLCV file found:"
+            wc -l data/sample_ohlcv.csv
+
+            echo ""
+            echo "First 5 rows:"
+            head -n 5 data/sample_ohlcv.csv
+
+            echo ""
+            echo "Last 5 rows:"
+            tail -n 5 data/sample_ohlcv.csv
+          else
+            echo "WARNING: data/sample_ohlcv.csv not found"
+          fi
 
 
       # ==========================================
@@ -105,108 +177,127 @@ jobs:
 
       - name: Show scanner output
         run: |
-
           echo ""
           echo "=========================================="
-          echo "JOHN'S SCANNER COMPLETED"
+          echo "JOHN'S SCANNER OUTPUT"
           echo "=========================================="
-
           echo ""
-          echo "UNIVERSE"
-          echo "------------------------------------------"
 
-          if [ -f universe.csv ]; then
-            wc -l universe.csv
+          if [ -d output ]; then
+            echo "Output directory:"
+            ls -lah output/
           else
-            echo "universe.csv not found"
+            echo "WARNING: output directory not found"
           fi
-
-
-          echo ""
-          echo "OHLCV DATA"
-          echo "------------------------------------------"
-
-          if [ -f data/sample_ohlcv.csv ]; then
-            wc -l data/sample_ohlcv.csv
-          else
-            echo "data/sample_ohlcv.csv not found"
-          fi
-
-
-          echo ""
-          echo "OUTPUT FILES"
-          echo "------------------------------------------"
-
-          ls -lah output/
 
 
       # ==========================================
-      # SHOW ORIGINAL BACKTEST
+      # ORIGINAL BACKTEST OUTPUT
       # ==========================================
 
       - name: Show original backtest output
         run: |
-
           echo ""
           echo "=========================================="
-          echo "ORIGINAL BACKTEST"
+          echo "ORIGINAL BACKTEST OUTPUT"
           echo "=========================================="
+          echo ""
 
           if [ -f output/backtest_results.csv ]; then
             echo "Original backtest CSV:"
             wc -l output/backtest_results.csv
           else
-            echo "WARNING:"
-            echo "Original backtest CSV not found."
+            echo "WARNING: Original backtest CSV not found"
           fi
 
 
       # ==========================================
-      # SHOW BACKTEST V3
+      # BACKTEST V3 OUTPUT
       # ==========================================
 
       - name: Show Backtest V3 output
         run: |
-
           echo ""
           echo "=========================================="
           echo "JOHN'S BACKTEST V3 OUTPUT"
           echo "=========================================="
+          echo ""
 
           if [ -f output/backtest_v3_results.csv ]; then
-            echo ""
             echo "Backtest V3 CSV created successfully."
             wc -l output/backtest_v3_results.csv
           else
-            echo ""
-            echo "WARNING:"
-            echo "Backtest V3 CSV not found."
+            echo "WARNING: Backtest V3 CSV not found."
           fi
 
+          echo ""
 
           if [ -f output/backtest_v3.html ]; then
-            echo ""
             echo "Backtest V3 HTML created successfully."
           else
-            echo ""
-            echo "WARNING:"
-            echo "Backtest V3 HTML not found."
+            echo "WARNING: Backtest V3 HTML not found."
           fi
 
 
       # ==========================================
-      # DISPLAY FINAL BACKTEST FILES
+      # BACKTEST V4 OUTPUT
+      # ==========================================
+
+      - name: Show Backtest V4 output
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "JOHN'S BACKTEST V4 OUTPUT"
+          echo "=========================================="
+          echo ""
+
+          if [ -f output/backtest_v4_results.csv ]; then
+            echo "Backtest V4 trade CSV created successfully."
+
+            wc -l output/backtest_v4_results.csv
+          else
+            echo "WARNING: backtest_v4_results.csv not found."
+          fi
+
+          echo ""
+
+          if [ -f output/backtest_v4_summary.csv ]; then
+            echo "=========================================="
+            echo "BACKTEST V4 SUMMARY"
+            echo "=========================================="
+            echo ""
+
+            cat output/backtest_v4_summary.csv
+          else
+            echo "WARNING: backtest_v4_summary.csv not found."
+          fi
+
+          echo ""
+
+          if [ -f output/backtest_v4.html ]; then
+            echo "Backtest V4 HTML created successfully."
+          else
+            echo "WARNING: backtest_v4.html not found."
+          fi
+
+
+      # ==========================================
+      # LIST FINAL OUTPUT
       # ==========================================
 
       - name: Show final output
         run: |
-
           echo ""
           echo "=========================================="
           echo "FINAL OUTPUT FILES"
           echo "=========================================="
+          echo ""
 
-          find output -maxdepth 1 -type f -printf "%f\n" | sort
+          if [ -d output ]; then
+            find output -maxdepth 1 -type f -printf "%f\n" | sort
+          else
+            echo "No output directory found."
+          fi
 
           echo ""
           echo "=========================================="
@@ -224,9 +315,9 @@ jobs:
           path: output/
 
 
-  # ==========================================
-  # DEPLOY TO GITHUB PAGES
-  # ==========================================
+  # ============================================
+  # DEPLOY JOB
+  # ============================================
 
   deploy:
 
