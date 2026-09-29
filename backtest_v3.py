@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import html
 
 ROOT = Path(__file__).resolve().parent
 
@@ -8,6 +9,7 @@ DATA_FILE = ROOT / "data" / "sample_ohlcv.csv"
 OUTPUT_DIR = ROOT / "output"
 
 OUTPUT_CSV = OUTPUT_DIR / "backtest_v3_results.csv"
+OUTPUT_HTML = OUTPUT_DIR / "backtest_v3.html"
 
 EMA_LEN = 50
 RSI_LEN = 14
@@ -62,7 +64,6 @@ print("Rows:", len(df))
 print("Stocks:", df["symbol"].nunique())
 print()
 
-
 df["date"] = pd.to_datetime(
     df["date"],
     errors="coerce"
@@ -75,12 +76,10 @@ for col in [
     "close",
     "volume"
 ]:
-
     df[col] = pd.to_numeric(
         df[col],
         errors="coerce"
     )
-
 
 df = df.dropna(
     subset=[
@@ -98,9 +97,7 @@ df = df.sort_values(
     ["symbol", "date"]
 )
 
-
 results = []
-
 
 for number, (symbol, stock) in enumerate(
     df.groupby("symbol"),
@@ -113,45 +110,37 @@ for number, (symbol, stock) in enumerate(
         "date"
     ).reset_index(drop=True)
 
-
     if len(stock) < 80:
         continue
-
 
     stock["ema50"] = stock["close"].ewm(
         span=EMA_LEN,
         adjust=False
     ).mean()
 
-
     stock["rsi"] = rsi_wilder(
         stock["close"],
         RSI_LEN
     )
 
-
     stock["vol_avg"] = stock["volume"].rolling(
         VOL_LEN
     ).mean()
 
-
     stock["vol_ratio"] = (
-        stock["volume"]
-        /
+        stock["volume"] /
         stock["vol_avg"]
     )
 
-
     stock["cross"] = (
-        (stock["close"] > stock["ema50"])
-        &
+        (stock["close"] > stock["ema50"]) &
         (
-            stock["close"].shift(1)
-            <=
+            stock["close"].shift(1) <=
             stock["ema50"].shift(1)
         )
     )
 
+    used_crosses = set()
 
     for i in range(
         EMA_LEN + VOL_LEN,
@@ -175,20 +164,20 @@ for number, (symbol, stock) in enumerate(
                 cross_index = j
                 break
 
-
         if cross_index is None:
             continue
 
+        if cross_index in used_crosses:
+            continue
 
         pullback_index = None
 
         start_pb = cross_index + 1
 
         end_pb = min(
-            i,
+            len(stock) - 1,
             cross_index + MAX_PULLBACK
         )
-
 
         for j in range(
             start_pb,
@@ -196,7 +185,6 @@ for number, (symbol, stock) in enumerate(
         ):
 
             ema = stock.loc[j, "ema50"]
-
             low = stock.loc[j, "low"]
 
             if pd.isna(ema):
@@ -211,10 +199,8 @@ for number, (symbol, stock) in enumerate(
                 pullback_index = j
                 break
 
-
         if pullback_index is None:
             continue
-
 
         rsi = stock.loc[i, "rsi"]
 
@@ -224,7 +210,6 @@ for number, (symbol, stock) in enumerate(
         if rsi <= 50:
             continue
 
-
         vol_ratio = stock.loc[i, "vol_ratio"]
 
         if pd.isna(vol_ratio):
@@ -233,10 +218,8 @@ for number, (symbol, stock) in enumerate(
         if vol_ratio < VOL_MULT:
             continue
 
-
         if stock.loc[i, "close"] <= stock.loc[i, "open"]:
             continue
-
 
         entry = float(
             stock.loc[i, "close"]
@@ -248,27 +231,21 @@ for number, (symbol, stock) in enumerate(
             stock.loc[pullback_index, "low"]
         )
 
-
         risk = entry - pullback_low
 
         if risk <= 0:
             continue
 
-
         tp1 = entry + risk
-
         tp2 = entry + (risk * 2)
-
 
         future = stock.iloc[
             i + 1:
             i + 1 + MAX_HOLD
         ]
 
-
         if future.empty:
             continue
-
 
         tp1_hit = False
         tp2_hit = False
@@ -282,23 +259,14 @@ for number, (symbol, stock) in enumerate(
         last_close = entry
         last_date = entry_date
 
-
         for bar, (_, candle) in enumerate(
             future.iterrows(),
             start=1
         ):
 
-            high = float(
-                candle["high"]
-            )
-
-            low = float(
-                candle["low"]
-            )
-
-            close = float(
-                candle["close"]
-            )
+            high = float(candle["high"])
+            low = float(candle["low"])
+            close = float(candle["close"])
 
             last_close = close
             last_date = candle["date"]
@@ -313,12 +281,10 @@ for number, (symbol, stock) in enumerate(
                 low
             )
 
-
             if not tp1_hit and high >= tp1:
 
                 tp1_hit = True
                 tp1_bar = bar
-
 
             if not tp2_hit and high >= tp2:
 
@@ -326,7 +292,6 @@ for number, (symbol, stock) in enumerate(
                 tp2_bar = bar
 
                 break
-
 
         if tp2_hit:
 
@@ -340,7 +305,6 @@ for number, (symbol, stock) in enumerate(
                 ((tp2 - entry) / entry) * 50
             )
 
-
         elif tp1_hit:
 
             status = "TP1 HIT"
@@ -352,7 +316,6 @@ for number, (symbol, stock) in enumerate(
                 +
                 ((last_close - entry) / entry) * 50
             )
-
 
         else:
 
@@ -366,7 +329,6 @@ for number, (symbol, stock) in enumerate(
                 * 100
             )
 
-
         max_upside = (
             (max_high - entry)
             / entry
@@ -379,19 +341,18 @@ for number, (symbol, stock) in enumerate(
             * 100
         )
 
-
         results.append({
 
             "symbol": symbol,
 
             "ema_cross_date":
-                stock.loc[cross_index, "date"],
+                stock.loc[cross_index, "date"].strftime("%Y-%m-%d"),
 
             "pullback_date":
-                stock.loc[pullback_index, "date"],
+                stock.loc[pullback_index, "date"].strftime("%Y-%m-%d"),
 
             "entry_date":
-                entry_date,
+                entry_date.strftime("%Y-%m-%d"),
 
             "entry":
                 round(entry, 2),
@@ -418,7 +379,7 @@ for number, (symbol, stock) in enumerate(
                 tp2_bar if tp2_hit else "",
 
             "exit_date":
-                last_date,
+                last_date.strftime("%Y-%m-%d"),
 
             "exit_price":
                 round(exit_price, 2),
@@ -433,6 +394,7 @@ for number, (symbol, stock) in enumerate(
                 round(max_downside, 2)
         })
 
+        used_crosses.add(cross_index)
 
     if number % 25 == 0:
 
@@ -449,20 +411,41 @@ OUTPUT_DIR.mkdir(
     exist_ok=True
 )
 
-
 result_df = pd.DataFrame(results)
-
 
 if result_df.empty:
 
-    print()
-    print("NO SIGNALS FOUND")
-    print()
+    result_df = pd.DataFrame(
+        columns=[
+            "symbol",
+            "ema_cross_date",
+            "pullback_date",
+            "entry_date",
+            "entry",
+            "pullback_low",
+            "risk",
+            "tp1",
+            "tp2",
+            "status",
+            "bars_to_tp1",
+            "bars_to_tp2",
+            "exit_date",
+            "exit_price",
+            "return_pct",
+            "max_upside_pct",
+            "max_downside_pct"
+        ]
+    )
 
     result_df.to_csv(
         OUTPUT_CSV,
         index=False
     )
+
+    print()
+    print("NO SIGNALS FOUND")
+    print("CSV created:", OUTPUT_CSV)
+    print()
 
     raise SystemExit(0)
 
@@ -489,7 +472,6 @@ open_count = result_df[
     result_df["status"] == "OPEN"
 ].shape[0]
 
-
 tp1_rate = (
     tp1_count / total * 100
 )
@@ -498,33 +480,27 @@ tp2_rate = (
     tp2_count / total * 100
 )
 
-
 avg_return = result_df[
     "return_pct"
 ].mean()
-
 
 avg_upside = result_df[
     "max_upside_pct"
 ].mean()
 
-
 avg_downside = result_df[
     "max_downside_pct"
 ].mean()
-
 
 bars1 = pd.to_numeric(
     result_df["bars_to_tp1"],
     errors="coerce"
 ).dropna()
 
-
 bars2 = pd.to_numeric(
     result_df["bars_to_tp2"],
     errors="coerce"
 ).dropna()
-
 
 avg_bars1 = (
     bars1.mean()
@@ -532,11 +508,170 @@ avg_bars1 = (
     else 0
 )
 
-
 avg_bars2 = (
     bars2.mean()
     if len(bars2)
     else 0
+)
+
+
+def safe(value):
+    return html.escape(str(value))
+
+
+rows = []
+
+for _, row in result_df.iterrows():
+
+    status = str(row["status"])
+
+    rows.append(
+        "<tr>"
+        "<td>" + safe(row["symbol"]) + "</td>"
+        "<td>" + safe(row["ema_cross_date"]) + "</td>"
+        "<td>" + safe(row["pullback_date"]) + "</td>"
+        "<td>" + safe(row["entry_date"]) + "</td>"
+        "<td>" + safe(row["entry"]) + "</td>"
+        "<td>" + safe(row["pullback_low"]) + "</td>"
+        "<td>" + safe(row["tp1"]) + "</td>"
+        "<td>" + safe(row["tp2"]) + "</td>"
+        "<td>" + safe(status) + "</td>"
+        "<td>" + safe(row["bars_to_tp1"]) + "</td>"
+        "<td>" + safe(row["bars_to_tp2"]) + "</td>"
+        "<td>" + safe(row["exit_date"]) + "</td>"
+        "<td>" + safe(row["exit_price"]) + "</td>"
+        "<td>" + safe(row["return_pct"]) + "%</td>"
+        "<td>" + safe(row["max_upside_pct"]) + "%</td>"
+        "<td>" + safe(row["max_downside_pct"]) + "%</td>"
+        "</tr>"
+    )
+
+
+table_rows = "\n".join(rows)
+
+
+html_lines = []
+
+html_lines.append("<!DOCTYPE html>")
+html_lines.append("<html>")
+html_lines.append("<head>")
+html_lines.append('<meta charset="UTF-8">')
+html_lines.append("<title>John Backtest V3</title>")
+
+html_lines.append("<style>")
+html_lines.append("body{font-family:Arial,sans-serif;background:#111;color:#eee;margin:0;padding:20px}")
+html_lines.append(".container{max-width:1600px;margin:auto}")
+html_lines.append("h1{margin-bottom:5px}")
+html_lines.append(".sub{color:#aaa;margin-bottom:20px}")
+html_lines.append(".cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}")
+html_lines.append(".card{background:#1d1d1d;padding:16px;border-radius:10px}")
+html_lines.append(".label{color:#999;font-size:12px}")
+html_lines.append(".value{font-size:24px;font-weight:bold;margin-top:5px}")
+html_lines.append(".download{display:inline-block;padding:10px 15px;background:#333;color:#fff;text-decoration:none;border-radius:7px;margin-bottom:20px}")
+html_lines.append(".tablebox{overflow-x:auto;background:#181818;border-radius:10px}")
+html_lines.append("table{border-collapse:collapse;width:100%;min-width:1500px}")
+html_lines.append("th{background:#252525;position:sticky;top:0;padding:10px;text-align:left}")
+html_lines.append("td{border-bottom:1px solid #333;padding:9px;white-space:nowrap}")
+html_lines.append("tr:hover{background:#222}")
+html_lines.append("</style>")
+
+html_lines.append("</head>")
+html_lines.append("<body>")
+html_lines.append('<div class="container">')
+
+html_lines.append("<h1>JOHN'S BACKTEST V3</h1>")
+
+html_lines.append(
+    "<div class=\"sub\">"
+    "EMA50 Cross → Pullback → RSI &gt; 50 → Volume ≥ 1.5× → Bullish Confirmation"
+    "</div>"
+)
+
+html_lines.append(
+    '<a class="download" href="backtest_v3_results.csv" download>'
+    "📥 DOWNLOAD BACKTEST CSV"
+    "</a>"
+)
+
+html_lines.append('<div class="cards">')
+
+cards = [
+    ("TOTAL SIGNALS", total),
+    ("TP1 HIT", str(tp1_count) + " (" + f"{tp1_rate:.2f}" + "%)"),
+    ("TP2 HIT", str(tp2_count) + " (" + f"{tp2_rate:.2f}" + "%)"),
+    ("STILL OPEN", open_count),
+    ("AVG RETURN", f"{avg_return:.2f}%"),
+    ("AVG BARS TP1", f"{avg_bars1:.2f}"),
+    ("AVG BARS TP2", f"{avg_bars2:.2f}"),
+    ("AVG MAX UPSIDE", f"{avg_upside:.2f}%"),
+    ("AVG MAX DOWNSIDE", f"{avg_downside:.2f}%")
+]
+
+for label, value in cards:
+
+    html_lines.append(
+        '<div class="card">'
+        '<div class="label">' + safe(label) + "</div>"
+        '<div class="value">' + safe(value) + "</div>"
+        "</div>"
+    )
+
+html_lines.append("</div>")
+
+html_lines.append(
+    "<p>"
+    "Entry = confirmation candle close | "
+    "Stop loss = NONE | "
+    "Maximum holding = 60 bars"
+    "</p>"
+)
+
+html_lines.append('<div class="tablebox">')
+html_lines.append("<table>")
+
+headers = [
+    "STOCK",
+    "EMA CROSS",
+    "PULLBACK",
+    "ENTRY DATE",
+    "ENTRY",
+    "PULLBACK LOW",
+    "TP1",
+    "TP2",
+    "STATUS",
+    "BARS TP1",
+    "BARS TP2",
+    "EXIT DATE",
+    "EXIT PRICE",
+    "RETURN %",
+    "MAX UPSIDE %",
+    "MAX DOWNSIDE %"
+]
+
+html_lines.append("<thead><tr>")
+
+for header in headers:
+    html_lines.append(
+        "<th>" + header + "</th>"
+    )
+
+html_lines.append("</tr></thead>")
+
+html_lines.append("<tbody>")
+html_lines.append(table_rows)
+html_lines.append("</tbody>")
+
+html_lines.append("</table>")
+html_lines.append("</div>")
+
+html_lines.append("</div>")
+html_lines.append("</body>")
+html_lines.append("</html>")
+
+
+OUTPUT_HTML.write_text(
+    "\n".join(html_lines),
+    encoding="utf-8"
 )
 
 
@@ -591,26 +726,8 @@ print(
 
 print()
 
-print(
-    "Entry = confirmation candle CLOSE"
-)
-
-print(
-    "Stop loss = NONE"
-)
-
-print(
-    "Maximum holding =",
-    MAX_HOLD,
-    "bars"
-)
-
-print()
-
-print(
-    "CSV:",
-    OUTPUT_CSV
-)
+print("CSV :", OUTPUT_CSV)
+print("HTML:", OUTPUT_HTML)
 
 print()
 
