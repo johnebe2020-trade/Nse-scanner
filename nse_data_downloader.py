@@ -9,6 +9,7 @@ import yfinance as yf
 
 # ============================================================
 # JOHN'S NSE 500 DATA DOWNLOADER
+# SAFE VERSION
 # ============================================================
 
 ROOT = Path(__file__).resolve().parent
@@ -19,7 +20,6 @@ DATA_DIR.mkdir(exist_ok=True)
 UNIVERSE_FILE = ROOT / "universe.csv"
 OHLCV_FILE = DATA_DIR / "sample_ohlcv.csv"
 
-# One year of daily history
 PERIOD = "1y"
 
 NIFTY500_URL = (
@@ -36,48 +36,48 @@ HEADERS = {
 }
 
 
-# ------------------------------------------------------------
-# 1. DOWNLOAD NIFTY 500 UNIVERSE
-# ------------------------------------------------------------
+# ============================================================
+# DOWNLOAD NIFTY 500 UNIVERSE
+# ============================================================
 
 def download_nifty500_universe():
 
-    print("Downloading Nifty 500 constituent list...")
+    print("=" * 70)
+    print("DOWNLOADING NIFTY 500 UNIVERSE")
+    print("=" * 70)
 
     try:
+
         response = requests.get(
             NIFTY500_URL,
             headers=HEADERS,
             timeout=30
         )
 
+        print("NSE response:", response.status_code)
+
         response.raise_for_status()
 
-        df = pd.read_csv(io.BytesIO(response.content))
+        df = pd.read_csv(
+            io.BytesIO(response.content)
+        )
 
-        print("Columns received:")
-        print(list(df.columns))
+        print("Columns:", list(df.columns))
 
-        # Find symbol column safely
         symbol_column = None
 
         for col in df.columns:
+
             if str(col).strip().lower() == "symbol":
+
                 symbol_column = col
                 break
 
         if symbol_column is None:
-            raise ValueError("Symbol column not found.")
 
-        # Find industry/sector column
-        industry_column = None
-
-        for col in df.columns:
-            name = str(col).strip().lower()
-
-            if name in ["industry", "sector"]:
-                industry_column = col
-                break
+            raise RuntimeError(
+                "Nifty 500 Symbol column was not found."
+            )
 
         result = pd.DataFrame()
 
@@ -87,24 +87,30 @@ def download_nifty500_universe():
             .str.strip()
         )
 
-        if industry_column:
-            result["sector"] = (
-                df[industry_column]
-                .astype(str)
-                .str.strip()
-            )
-        else:
-            result["sector"] = "Nifty 500"
-
-        # Remove bad rows
         result = result[
-            (result["symbol"] != "") &
-            (result["symbol"].str.lower() != "nan")
+            result["symbol"].notna()
+        ]
+
+        result = result[
+            result["symbol"].str.lower() != "nan"
+        ]
+
+        result = result[
+            result["symbol"] != ""
         ]
 
         result = result.drop_duplicates(
             subset=["symbol"]
         )
+
+        if len(result) < 450:
+
+            raise RuntimeError(
+                f"Only {len(result)} stocks received. "
+                "Expected approximately 500."
+            )
+
+        result["sector"] = "Nifty 500"
 
         result.to_csv(
             UNIVERSE_FILE,
@@ -112,7 +118,7 @@ def download_nifty500_universe():
         )
 
         print(
-            f"Nifty 500 universe saved: "
+            f"VALID NIFTY 500 UNIVERSE: "
             f"{len(result)} stocks"
         )
 
@@ -120,24 +126,24 @@ def download_nifty500_universe():
 
     except Exception as e:
 
-        print("ERROR downloading Nifty 500 universe:")
-        print(e)
+        print()
+        print("ERROR:", e)
+        print()
+        print(
+            "IMPORTANT: I will NOT use the old "
+            "small universe.csv."
+        )
 
-        # If an old universe exists, use it
-        if UNIVERSE_FILE.exists():
-
-            print(
-                "Using existing universe.csv instead."
-            )
-
-            return pd.read_csv(UNIVERSE_FILE)
-
-        raise
+        raise RuntimeError(
+            "Nifty 500 universe download failed. "
+            "Fix the universe/data source before "
+            "running the backtest."
+        )
 
 
-# ------------------------------------------------------------
-# 2. DOWNLOAD OHLCV
-# ------------------------------------------------------------
+# ============================================================
+# DOWNLOAD DAILY OHLCV
+# ============================================================
 
 def download_ohlcv(universe):
 
@@ -149,12 +155,13 @@ def download_ohlcv(universe):
     )
 
     print()
-    print("=" * 60)
-    print("Downloading historical OHLCV")
-    print("=" * 60)
+    print("=" * 70)
+    print("DOWNLOADING HISTORICAL OHLCV")
+    print("=" * 70)
 
-    print(f"Stocks: {len(symbols)}")
-    print(f"Period: {PERIOD}")
+    print("Stocks:", len(symbols))
+    print("Period:", PERIOD)
+    print("Interval: 1D")
     print()
 
     yahoo_symbols = [
@@ -164,20 +171,23 @@ def download_ohlcv(universe):
 
     all_data = []
 
-    # Download in batches to reduce failures
     batch_size = 50
 
-    for start in range(0, len(yahoo_symbols), batch_size):
+    for start in range(
+        0,
+        len(yahoo_symbols),
+        batch_size
+    ):
 
         batch = yahoo_symbols[
             start:start + batch_size
         ]
 
         print(
-            f"Downloading batch "
-            f"{start + 1} - "
-            f"{min(start + batch_size, len(yahoo_symbols))} "
-            f"of {len(yahoo_symbols)}"
+            f"Batch "
+            f"{start + 1}-"
+            f"{min(start + batch_size, len(yahoo_symbols))}"
+            f"/{len(yahoo_symbols)}"
         )
 
         try:
@@ -193,21 +203,26 @@ def download_ohlcv(universe):
             )
 
             if data.empty:
-                print("No data returned for this batch.")
+
+                print("No data returned.")
                 continue
 
-            # ----------------------------------------
-            # Multiple stocks
-            # ----------------------------------------
-
-            if isinstance(data.columns, pd.MultiIndex):
+            if isinstance(
+                data.columns,
+                pd.MultiIndex
+            ):
 
                 for yahoo_symbol in batch:
 
-                    if yahoo_symbol not in data.columns.levels[0]:
+                    if (
+                        yahoo_symbol
+                        not in data.columns.levels[0]
+                    ):
                         continue
 
-                    stock = data[yahoo_symbol].copy()
+                    stock = data[
+                        yahoo_symbol
+                    ].copy()
 
                     stock = stock.reset_index()
 
@@ -221,49 +236,18 @@ def download_ohlcv(universe):
                     ]
 
                     if not all(
-                        col in stock.columns
-                        for col in required
+                        c in stock.columns
+                        for c in required
                     ):
                         continue
 
-                    stock = stock[required]
+                    stock = stock[
+                        required
+                    ]
 
                     stock["symbol"] = (
-                        yahoo_symbol.replace(".NS", "")
-                    )
-
-                    stock = stock.dropna(
-                        subset=["Close"]
-                    )
-
-                    all_data.append(stock)
-
-            # ----------------------------------------
-            # Single stock fallback
-            # ----------------------------------------
-
-            else:
-
-                stock = data.reset_index()
-
-                required = [
-                    "Date",
-                    "Open",
-                    "High",
-                    "Low",
-                    "Close",
-                    "Volume"
-                ]
-
-                if all(
-                    col in stock.columns
-                    for col in required
-                ):
-
-                    stock = stock[required]
-
-                    stock["symbol"] = (
-                        batch[0].replace(".NS", "")
+                        yahoo_symbol
+                        .replace(".NS", "")
                     )
 
                     stock = stock.dropna(
@@ -275,24 +259,23 @@ def download_ohlcv(universe):
         except Exception as e:
 
             print(
-                f"Batch failed: {e}"
+                "Batch error:",
+                e
             )
 
-        time.sleep(1)
+        time.sleep(2)
 
     if not all_data:
 
         raise RuntimeError(
-            "No OHLCV data was downloaded."
+            "ZERO OHLCV DATA DOWNLOADED."
         )
 
-    # Combine everything
     final = pd.concat(
         all_data,
         ignore_index=True
     )
 
-    # Standardize column names
     final = final.rename(
         columns={
             "Date": "date",
@@ -328,29 +311,64 @@ def download_ohlcv(universe):
         subset=["symbol", "date"]
     )
 
+    stocks_found = final[
+        "symbol"
+    ].nunique()
+
+    rows = len(final)
+
+    print()
+    print("=" * 70)
+    print("DATA VALIDATION")
+    print("=" * 70)
+
+    print(
+        "Stocks with OHLCV:",
+        stocks_found
+    )
+
+    print(
+        "Total rows:",
+        rows
+    )
+
+    print(
+        "Date from:",
+        final["date"].min()
+    )
+
+    print(
+        "Date to:",
+        final["date"].max()
+    )
+
+    # --------------------------------------------------------
+    # DO NOT ALLOW A TINY DATASET
+    # --------------------------------------------------------
+
+    if stocks_found < 400:
+
+        raise RuntimeError(
+            f"Only {stocks_found} stocks have data. "
+            "Expected at least 400."
+        )
+
+    if rows < 50000:
+
+        raise RuntimeError(
+            f"Only {rows} OHLCV rows downloaded. "
+            "Dataset is too small for the backtest."
+        )
+
     final.to_csv(
         OHLCV_FILE,
         index=False
     )
 
     print()
-    print("=" * 60)
-    print("DOWNLOAD COMPLETE")
-    print("=" * 60)
-
     print(
-        f"Stocks with data: "
-        f"{final['symbol'].nunique()}"
-    )
-
-    print(
-        f"Total candles: "
-        f"{len(final)}"
-    )
-
-    print(
-        f"Saved to: "
-        f"{OHLCV_FILE}"
+        "Saved:",
+        OHLCV_FILE
     )
 
     print()
@@ -359,21 +377,25 @@ def download_ohlcv(universe):
     return final
 
 
-# ------------------------------------------------------------
+# ============================================================
 # MAIN
-# ------------------------------------------------------------
+# ============================================================
 
 if __name__ == "__main__":
 
     print()
-    print("=" * 60)
+    print("=" * 70)
     print("JOHN'S NSE 500 DATA DOWNLOADER")
-    print("=" * 60)
+    print("=" * 70)
     print()
 
     universe = download_nifty500_universe()
 
-    download_ohlcv(universe)
+    download_ohlcv(
+        universe
+    )
 
     print()
-    print("Data preparation finished successfully.")
+    print(
+        "DATA PREPARATION COMPLETED."
+    )
