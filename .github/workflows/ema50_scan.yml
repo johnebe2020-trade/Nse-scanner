@@ -1,8 +1,7 @@
 name: EMA50 RSI Scan
 on:
   schedule:
-    - cron: "0 8 * * 1-5"     # 1:30 PM IST
-    - cron: "30 10 * * 1-5"   # 4:00 PM IST
+    - cron: "*/30 4-10 * * 1-5"   # 9:30 AM to 4:00 PM IST, every 30 min
   workflow_dispatch:
 
 concurrency:
@@ -23,8 +22,12 @@ jobs:
       - run: pip install requests pandas
       - run: python ema50_rsi_scanner.py
         env:
+          UPSTOX_TOKEN: ${{ secrets.UPSTOX_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - run: python options_calc.py
+        env:
+          UPSTOX_TOKEN: ${{ secrets.UPSTOX_TOKEN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
