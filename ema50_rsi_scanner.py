@@ -279,6 +279,7 @@ def main():
         send("Upstox token expire ho gaya. GitHub secret UPSTOX_TOKEN update karo.")
         raise SystemExit(1)
     write_html(hits, len(rows))
+    json.dump(hits, open("docs/hits.json", "w"))
     now = datetime.datetime.now(IST)
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
     if manual or (now.hour in TG_HOURS and now.minute < 30):
