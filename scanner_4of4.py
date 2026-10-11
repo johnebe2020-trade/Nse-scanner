@@ -9,9 +9,17 @@ from openpyxl import load_workbook
 # ============ EDIT HERE ============
 STOCK_FILE = "stocks.xlsx"     # your Excel file name
 EXIT_LOOKBACK = 1              # show EXIT rows if exit happened in last N bars
+WATCH_SCORE = 3                # 3 = only 1 condition missing, 2 = wider list
 WORKERS = 8
-SYMBOL_FIX = {}                # rename: {"OLDNAME": "YAHOONAME"}
-REMOVE = set()                 # drop: {"EBIX", "COMPEAU"}
+SYMBOL_FIX = {                 # rename: "OLD": "YAHOO NAME" (verify the unsure ones)
+    "HEROMOTORS": "HEROMOTOCO",
+    "KARURVAYSYA": "KARURVYSYA",
+    "FINE": "FINEORG",
+    "TECHNOCRAF": "TIIL",
+    "THIRUMALCHM": "TIRUMALCHM",
+    "DDEVPLASTIK": "DDEVPLSTIK",
+}
+REMOVE = {"EBIX"}              # drop these symbols
 ST_PERIOD, ST_FACTOR = 10, 2.0
 RSI_LEN, RSI_MIN = 14, 70
 BB_LEN, BB_MULT = 20, 2.0
@@ -142,22 +150,39 @@ def analyse(sym):
     ok = valid & c1 & c2 & c3 & c4
 
     base = dict(sym=sym, sector=sec, rsi=f"{rs[-1]:.1f}", close=f"{c[-1]:.2f}")
+
+    # ACTIVE: all 4 true now
     if ok[-1]:
         j = n - 1
         while j > 0 and ok[j - 1]:
             j -= 1
         return dict(base, status="ACTIVE", when=fdate(ts[j]), note="4/4 OK")
 
+    # EXIT: was 4/4 recently, now broken
     idx = np.where(ok)[0]
     if len(idx) and (n - 1 - idx[-1]) <= EXIT_LOOKBACK:
         e = idx[-1] + 1
         failed = [nm for nm, cond in (("ST", c1), ("RSI", c2), ("R1", c3), ("BB", c4)) if not cond[e]]
         return dict(base, status="EXIT", when=fdate(ts[e]), note="FAIL " + " ".join(failed))
+
+    # WATCH: close to triggering (early warning)
+    score = int(c1[-1]) + int(c2[-1]) + int(c3[-1]) + int(c4[-1])
+    if valid[-1] and WATCH_SCORE <= score < 4:
+        need = []
+        if not c1[-1]:
+            need.append(f"ST +{(st[-1] / c[-1] - 1) * 100:.1f}%")
+        if not c2[-1]:
+            need.append(f"RSI +{RSI_MIN - rs[-1]:.1f}pt")
+        if not c3[-1]:
+            need.append(f"R1 +{(r1[-1] / c[-1] - 1) * 100:.1f}%")
+        if not c4[-1]:
+            need.append(f"BB +{(ub[-1] / c[-1] - 1) * 100:.1f}%")
+        return dict(base, status="WATCH", when="-", note=f"{score}/4 NEED " + " ".join(need))
     return None
 
 
 def sort_rows(res):
-    order = {"ACTIVE": 0, "EXIT": 1, "ERR": 2}
+    order = {"ACTIVE": 0, "EXIT": 1, "WATCH": 2, "ERR": 3}
     return sorted(res, key=lambda x: (order[x["status"]], x["sym"]))
 
 
@@ -168,9 +193,9 @@ if __name__ == "__main__":
     with ThreadPoolExecutor(WORKERS) as ex:
         out = sort_rows([r for r in ex.map(analyse, syms) if r])
 
-    na_, nx, ne = (sum(r["status"] == s for r in out) for s in ("ACTIVE", "EXIT", "ERR"))
+    na_, nx, nw, ne = (sum(r["status"] == s for r in out) for s in ("ACTIVE", "EXIT", "WATCH", "ERR"))
     summary = (f"4of4 Scan {datetime.now(IST):%d-%b-%y %H:%M} IST | ACTIVE {na_} | "
-               f"EXIT {nx} | ERR {ne} | scanned {len(syms)}")
+               f"EXIT {nx} | WATCH {nw} | ERR {ne} | scanned {len(syms)}")
     print(summary)
 
     # CSV
