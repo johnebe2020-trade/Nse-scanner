@@ -11,6 +11,7 @@ STOCK_FILE = "stocks.xlsx"     # your Excel file name
 EXIT_LOOKBACK = 1              # show EXIT rows if exit happened in last N bars
 WATCH_SCORE = 3                # 3 = only 1 condition missing, 2 = wider list
 WORKERS = 8
+SUFFIXES = ["", "-SM", "-BE"]  # tried in order; Yahoo uses -SM for NSE SME stocks
 SYMBOL_FIX = {                 # rename: "OLD": "YAHOO NAME" (verify the unsure ones)
     "HEROMOTORS": "HEROMOTOCO",
     "KARURVAYSYA": "KARURVYSYA",
@@ -74,6 +75,18 @@ def fetch(sym):
     return None, err
 
 
+def fetch_any(sym):
+    """Try plain name, then -SM, then -BE. Returns (rows, err, symbol_used)."""
+    first_err = None
+    for sfx in SUFFIXES:
+        rows, err = fetch(sym + sfx)
+        if not err and len(rows) >= 40:
+            return rows, None, sym + sfx
+        if first_err is None:
+            first_err = err or ("E2", "NO DATA")
+    return None, first_err, sym
+
+
 def rma(x, n):
     out = np.full(len(x), np.nan)
     if len(x) < n:
@@ -123,7 +136,7 @@ def fdate(t):
 
 def analyse(sym):
     sec = "/".join(STOCKS[sym])
-    rows, err = fetch(sym)
+    rows, err, used = fetch_any(sym)
     if not err:
         if len(rows) < 40:
             err = ("E2", "NO DATA")
@@ -149,7 +162,7 @@ def analyse(sym):
     valid = ~(np.isnan(st) | np.isnan(rs) | np.isnan(r1) | np.isnan(ub))
     ok = valid & c1 & c2 & c3 & c4
 
-    base = dict(sym=sym, sector=sec, rsi=f"{rs[-1]:.1f}", close=f"{c[-1]:.2f}")
+    base = dict(sym=used, sector=sec, rsi=f"{rs[-1]:.1f}", close=f"{c[-1]:.2f}")
 
     # ACTIVE: all 4 true now
     if ok[-1]:
