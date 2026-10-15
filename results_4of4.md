@@ -1,23 +1,17 @@
-**4of4 Scan 14-Oct-26 20:59 IST | ACTIVE 4 | EXIT 1 | WATCH 11 | ERR 28 | scanned 350**
+**4of4 Scan 15-Oct-26 20:49 IST | ACTIVE 1 | EXIT 4 | WATCH 5 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| ACTIVE | DHAMPURSUG | FMCG | 74.0 | 207.63 | 13-Oct-26 | 4/4 OK |
-| ACTIVE | HEXT | IT | 71.2 | 570.35 | 14-Oct-26 | 4/4 OK |
-| ACTIVE | ONWARDTEC | IT | 81.1 | 359.45 | 14-Oct-26 | 4/4 OK |
-| ACTIVE | TANLA | IT | 72.9 | 568.10 | 14-Oct-26 | 4/4 OK |
-| EXIT | UTTAMSUGAR | FMCG | 74.7 | 380.05 | 14-Oct-26 | FAIL R1 |
-| WATCH | BAFNAPH | HEALTH CARE | 92.5 | 443.50 | - | 3/4 NEED BB +2.3% |
-| WATCH | IDBI | BANK | 64.0 | 90.39 | - | 3/4 NEED RSI +6.0pt |
-| WATCH | INFOBEAN | IT | 65.2 | 162.58 | - | 3/4 NEED RSI +4.8pt |
-| WATCH | IRCTC | AUTO | 60.3 | 477.10 | - | 3/4 NEED RSI +9.7pt |
-| WATCH | MMP | METAL | 63.9 | 508.65 | - | 3/4 NEED RSI +6.1pt |
-| WATCH | MUFIN | AI | 63.0 | 140.20 | - | 3/4 NEED RSI +7.0pt |
-| WATCH | ONMOBILE | AI | 64.6 | 57.86 | - | 3/4 NEED RSI +5.4pt |
-| WATCH | PRADPME | AUTO | 76.7 | 702.15 | - | 3/4 NEED R1 +0.1% |
-| WATCH | RAIN | CHEMICAL | 66.7 | 237.08 | - | 3/4 NEED RSI +3.3pt |
-| WATCH | SIMPLEXINF | AI | 60.6 | 266.61 | - | 3/4 NEED RSI +9.4pt |
-| WATCH | ZENSARTECH | IT | 67.1 | 490.15 | - | 3/4 NEED RSI +2.9pt |
+| ACTIVE | ZENSARTECH | IT | 70.8 | 504.45 | 15-Oct-26 | 4/4 OK |
+| EXIT | DHAMPURSUG | FMCG | 63.1 | 196.99 | 15-Oct-26 | FAIL RSI R1 BB |
+| EXIT | HEXT | IT | 72.6 | 575.80 | 15-Oct-26 | FAIL R1 |
+| EXIT | ONWARDTEC | IT | 78.4 | 356.20 | 15-Oct-26 | FAIL R1 |
+| EXIT | TANLA | IT | 63.5 | 549.85 | 15-Oct-26 | FAIL RSI R1 |
+| WATCH | BAFNAPH | HEALTH CARE | 93.1 | 452.35 | - | 3/4 NEED BB +2.4% |
+| WATCH | BSOFT | IT | 64.8 | 309.50 | - | 3/4 NEED RSI +5.2pt |
+| WATCH | NRL | METAL | 72.0 | 165.54 | - | 3/4 NEED BB +3.4% |
+| WATCH | OAL | CHEMICAL | 69.5 | 579.15 | - | 3/4 NEED RSI +0.5pt |
+| WATCH | UTTAMSUGAR | FMCG | 73.1 | 376.65 | - | 3/4 NEED R1 +5.2% |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
