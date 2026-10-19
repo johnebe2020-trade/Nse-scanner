@@ -1,22 +1,22 @@
-**4of4 Scan 16-Oct-26 20:30 IST | ACTIVE 3 | EXIT 1 | WATCH 11 | ERR 28 | scanned 350**
+**4of4 Scan 19-Oct-26 22:40 IST | ACTIVE 3 | EXIT 3 | WATCH 9 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| ACTIVE | AAREYDRUGS | HEALTH CARE | 71.1 | 112.91 | 16-Oct-26 | 4/4 OK |
-| ACTIVE | INFOBEAN | IT | 70.6 | 168.05 | 16-Oct-26 | 4/4 OK |
-| ACTIVE | ONWARDTEC | IT | 87.9 | 427.40 | 16-Oct-26 | 4/4 OK |
-| EXIT | ZENSARTECH | IT | 71.6 | 507.75 | 16-Oct-26 | FAIL R1 |
-| WATCH | BAFNAPH | HEALTH CARE | 93.7 | 461.35 | - | 3/4 NEED BB +2.4% |
-| WATCH | BSOFT | IT | 68.2 | 318.20 | - | 3/4 NEED RSI +1.8pt |
-| WATCH | HEXT | IT | 74.2 | 582.75 | - | 3/4 NEED R1 +0.3% |
-| WATCH | KARURVYSYA | BANK | 66.8 | 355.65 | - | 3/4 NEED RSI +3.2pt |
-| WATCH | KPITTECH | IT | 60.7 | 555.00 | - | 3/4 NEED RSI +9.3pt |
-| WATCH | NRL | METAL | 74.5 | 168.85 | - | 3/4 NEED BB +0.6% |
-| WATCH | OAL | CHEMICAL | 76.4 | 629.55 | - | 3/4 NEED R1 +0.3% |
-| WATCH | ONMOBILE | AI | 69.1 | 60.85 | - | 3/4 NEED RSI +0.9pt |
-| WATCH | PRAKASH | METAL | 60.1 | 126.91 | - | 3/4 NEED RSI +9.9pt |
-| WATCH | SIMPLEXINF | AI | 64.2 | 275.84 | - | 3/4 NEED RSI +5.8pt |
-| WATCH | VALIANTLAB | HEALTH CARE | 68.5 | 134.65 | - | 3/4 NEED RSI +1.5pt |
+| ACTIVE | KARURVYSYA | BANK | 73.2 | 370.05 | 19-Oct-26 | 4/4 OK |
+| ACTIVE | KROSS | AUTO | 71.3 | 297.55 | 19-Oct-26 | 4/4 OK |
+| ACTIVE | VALIANTLAB | HEALTH CARE | 72.5 | 140.75 | 19-Oct-26 | 4/4 OK |
+| EXIT | AAREYDRUGS | HEALTH CARE | 72.1 | 113.87 | 19-Oct-26 | FAIL R1 |
+| EXIT | INFOBEAN | IT | 55.1 | 158.90 | 19-Oct-26 | FAIL RSI R1 BB |
+| EXIT | ONWARDTEC | IT | 89.7 | 453.35 | 19-Oct-26 | FAIL R1 |
+| WATCH | APOLLOTYRE | AUTO | 55.7 | 416.75 | - | 3/4 NEED RSI +14.3pt |
+| WATCH | BAFNAPH | HEALTH CARE | 94.3 | 470.55 | - | 3/4 NEED BB +2.4% |
+| WATCH | FEDERALBNK | BANK | 64.4 | 348.85 | - | 3/4 NEED RSI +5.6pt |
+| WATCH | MUFIN | AI | 64.1 | 141.94 | - | 3/4 NEED RSI +5.9pt |
+| WATCH | OAL | CHEMICAL | 74.5 | 624.40 | - | 3/4 NEED R1 +4.3% |
+| WATCH | PLATIND | CHEMICAL | 67.1 | 228.06 | - | 3/4 NEED RSI +2.9pt |
+| WATCH | PNB | BANK | 63.1 | 121.90 | - | 3/4 NEED RSI +6.9pt |
+| WATCH | SIMPLEXINF | AI | 69.4 | 288.61 | - | 3/4 NEED RSI +0.6pt |
+| WATCH | ZENSARTECH | IT | 72.9 | 513.15 | - | 3/4 NEED R1 +0.7% |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
