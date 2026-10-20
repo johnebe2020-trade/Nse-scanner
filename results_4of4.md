@@ -1,4 +1,4 @@
-**4of4 Scan 19-Oct-26 22:40 IST | ACTIVE 3 | EXIT 3 | WATCH 9 | ERR 28 | scanned 350**
+**4of4 Scan 20-Oct-26 20:52 IST | ACTIVE 3 | EXIT 3 | WATCH 9 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
