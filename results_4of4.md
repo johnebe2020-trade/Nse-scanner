@@ -1,8 +1,8 @@
-**4of4 Scan 23-Oct-26 20:58 IST | ACTIVE 0 | EXIT 1 | WATCH 0 | ERR 28 | scanned 350**
+**4of4 Scan 26-Oct-26 22:29 IST | ACTIVE 0 | EXIT 0 | WATCH 1 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| EXIT | PLATIND | CHEMICAL | 57.0 | 224.74 | 23-Oct-26 | FAIL RSI R1 BB |
+| WATCH | ATHERENERG | AUTO | 59.7 | 1575.00 | - | 3/4 NEED RSI +10.3pt |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
