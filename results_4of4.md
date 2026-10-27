@@ -1,8 +1,8 @@
-**4of4 Scan 26-Oct-26 22:29 IST | ACTIVE 0 | EXIT 0 | WATCH 1 | ERR 28 | scanned 350**
+**4of4 Scan 27-Oct-26 21:32 IST | ACTIVE 0 | EXIT 0 | WATCH 1 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| WATCH | ATHERENERG | AUTO | 59.7 | 1575.00 | - | 3/4 NEED RSI +10.3pt |
+| WATCH | COHANCE | HEALTH CARE | 62.1 | 479.25 | - | 3/4 NEED RSI +7.9pt |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
