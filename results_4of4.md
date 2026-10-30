@@ -1,19 +1,14 @@
-**4of4 Scan 29-Oct-26 22:34 IST | ACTIVE 2 | EXIT 1 | WATCH 9 | ERR 28 | scanned 350**
+**4of4 Scan 30-Oct-26 22:19 IST | ACTIVE 1 | EXIT 2 | WATCH 4 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| ACTIVE | BSOFT | IT | 70.4 | 342.50 | 29-Oct-26 | 4/4 OK |
-| ACTIVE | MANAKCOAT | METAL | 71.0 | 147.84 | 29-Oct-26 | 4/4 OK |
-| EXIT | PPLPHARMA | HEALTH CARE | 69.9 | 230.78 | 29-Oct-26 | FAIL RSI R1 |
-| WATCH | BAFNAPH | HEALTH CARE | 73.0 | 457.00 | - | 3/4 NEED BB +6.7% |
-| WATCH | BANKBARODA | BANK | 58.4 | 241.31 | - | 3/4 NEED RSI +11.6pt |
-| WATCH | ETERNAL | HEALTH CARE | 59.4 | 337.85 | - | 3/4 NEED RSI +10.6pt |
-| WATCH | HALDER | FMCG | 60.2 | 272.70 | - | 3/4 NEED RSI +9.8pt |
-| WATCH | MANCREDIT | AI | 63.8 | 239.94 | - | 3/4 NEED RSI +6.2pt |
-| WATCH | NHPC | ENERGY | 62.3 | 77.20 | - | 3/4 NEED RSI +7.7pt |
-| WATCH | POWERGRID | ENERGY | 57.1 | 260.00 | - | 3/4 NEED RSI +12.9pt |
-| WATCH | TANLA | IT | 72.3 | 618.40 | - | 3/4 NEED BB +0.4% |
-| WATCH | ZENSARTECH | IT | 70.7 | 537.30 | - | 3/4 NEED BB +1.3% |
+| ACTIVE | PPLPHARMA | HEALTH CARE | 73.2 | 238.91 | 30-Oct-26 | 4/4 OK |
+| EXIT | BSOFT | IT | 59.4 | 323.00 | 30-Oct-26 | FAIL RSI R1 BB |
+| EXIT | MANAKCOAT | METAL | 61.0 | 140.21 | 30-Oct-26 | FAIL RSI R1 BB |
+| WATCH | ATHERENERG | AUTO | 69.8 | 1756.00 | - | 3/4 NEED RSI +0.2pt |
+| WATCH | ETERNAL | HEALTH CARE | 62.2 | 343.65 | - | 3/4 NEED RSI +7.8pt |
+| WATCH | POWERGRID | ENERGY | 62.4 | 265.00 | - | 3/4 NEED RSI +7.6pt |
+| WATCH | SMSPHARMA | HEALTH CARE | 69.1 | 511.35 | - | 3/4 NEED RSI +0.9pt |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
