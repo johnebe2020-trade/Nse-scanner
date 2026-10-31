@@ -22,16 +22,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run scanner
+      - name: Run breakout scanner
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python breakout_scanner.py
 
+      - name: Run position monitor
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python position_monitor.py
+
       - name: Commit results
+        if: always()
         run: |
           git config user.name "bot"
           git config user.email "bot@users.noreply.github.com"
-          git add results_breakout.csv no_data.csv
-          git commit -m "breakout results" || echo "no changes"
+          git add results_breakout.csv no_data.csv positions_status.csv
+          git commit -m "scan results" || echo "no changes"
+          git pull --rebase
           git push
