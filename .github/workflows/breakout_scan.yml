@@ -40,7 +40,9 @@ jobs:
         run: |
           git config user.name "bot"
           git config user.email "bot@users.noreply.github.com"
-          git add results_breakout.csv no_data.csv positions_status.csv
+          for f in results_breakout.csv no_data.csv positions_status.csv; do
+            if [ -f "$f" ]; then git add "$f"; fi
+          done
           git commit -m "scan results" || echo "no changes"
           git pull --rebase
           git push
