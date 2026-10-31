@@ -1,4 +1,5 @@
 import os
+import math
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -14,11 +15,23 @@ ST_PERIOD = 10           # Supertrend ATR period
 ST_MULT = 3.0            # Supertrend multiplier
 MAX_CHASE = 0.05         # flag if close is >5% above resistance
 EXT_ATR = 2.5            # flag if close is >2.5 ATR above EMA20
-MAX_SL_PCT = 10.0        # flag if stop loss is wider than this %
+MAX_SL_PCT = 10.0        # flag if stop is wider than this % of entry
 WATCH_NEAR = 0.97        # WATCH rows must be within 3% of resistance
 
-COLUMNS = ["status", "symbol", "close", "resistance", "sl", "risk_pct",
-           "date", "flags", "note"]
+# ---- trade plan settings (change these) ----
+RISK_PER_TRADE = 1000    # rupees you accept to lose per trade
+ENTRY_BUFFER = 0.002     # entry = signal high + 0.2%
+SL_BUFFER = 0.002        # candle-low stop sits 0.2% below the low
+GAP_LIMIT = 0.03         # skip if next open is >3% above entry
+T1_R, T2_R = 1.5, 3.0    # targets as multiples of risk
+RISKY_SIZE = 0.5         # RISKY setups get half quantity
+
+COLUMNS = ["status", "symbol", "close", "entry", "sl", "risk_pct", "qty",
+           "cost", "t1", "t2", "skip_above", "date", "flags", "note"]
+
+
+def tick(x):
+    return round(round(x / 0.05) * 0.05, 2)
 
 
 def supertrend(high, low, close, period=10, mult=3.0):
@@ -118,16 +131,21 @@ for i in range(0, len(symbols), 100):
                 flags.append("3 GREEN")
             if c0 > res.iloc[-1] * (1 + MAX_CHASE):
                 flags.append("CHASE")
-
-            # ---- Supertrend stop loss ----
-            if st_up[-1]:
-                sl = round(float(st[-1]), 2)
-                risk_pct = round((c0 - sl) / c0 * 100, 1)
-                if risk_pct > MAX_SL_PCT:
-                    flags.append("WIDE SL")
-            else:
-                sl, risk_pct = None, None
+            if not st_up[-1]:
                 flags.append("ST DOWN")
+
+            # ---- trade plan ----
+            entry = tick(h0 * (1 + ENTRY_BUFFER))
+            candle_sl = l0 * (1 - SL_BUFFER)
+            sl_raw = max(float(st[-1]), candle_sl) if st_up[-1] else candle_sl
+            sl = tick(sl_raw)
+            risk_ps = entry - sl
+            risk_pct = round(risk_ps / entry * 100, 1) if risk_ps > 0 else None
+
+            if risk_ps <= 0:
+                flags.append("BAD SL")
+            elif risk_pct > MAX_SL_PCT:
+                flags.append("WIDE SL")
 
             if score == 4 and not flags:
                 status, note = "ACTIVE", "4/4 OK"
@@ -136,13 +154,33 @@ for i in range(0, len(symbols), 100):
             else:
                 status, note = "WATCH", f"3/4 NEED {missing[0]}"
 
+            plan = {"entry": "-", "sl": "-", "risk_pct": "-", "qty": "-",
+                    "cost": "-", "t1": "-", "t2": "-", "skip_above": "-"}
+            can_plan = (status in ("ACTIVE", "RISKY") and risk_ps > 0
+                        and "WIDE SL" not in flags)
+            if can_plan:
+                qty = math.floor(RISK_PER_TRADE / risk_ps)
+                if status == "RISKY":
+                    qty = math.floor(qty * RISKY_SIZE)
+                if qty >= 1:
+                    plan = {
+                        "entry": entry,
+                        "sl": sl,
+                        "risk_pct": risk_pct,
+                        "qty": qty,
+                        "cost": round(entry * qty),
+                        "t1": tick(entry + T1_R * risk_ps),
+                        "t2": tick(entry + T2_R * risk_ps),
+                        "skip_above": tick(entry * (1 + GAP_LIMIT)),
+                    }
+                else:
+                    flags.append("QTY<1")
+
             hits.append({
                 "status": status,
                 "symbol": s,
                 "close": round(c0, 2),
-                "resistance": round(res.iloc[-1], 2),
-                "sl": sl if sl is not None else "-",
-                "risk_pct": risk_pct if risk_pct is not None else "-",
+                **plan,
                 "date": d.index[-1].strftime("%d-%b-%y"),
                 "flags": " ".join(flags) if flags else "-",
                 "note": note,
@@ -166,11 +204,21 @@ print("\nNo data / wrong ticker:", len(no_data))
 token = os.getenv("TELEGRAM_BOT_TOKEN")
 chat = os.getenv("TELEGRAM_CHAT_ID")
 if token and chat:
+    plans = out[out["status"].isin(["ACTIVE", "RISKY"])]
     if out.empty:
         msg = "Breakout scan: no stocks today"
     else:
-        lines = [f"{r.status} | {r.symbol} | C {r.close} | SL {r.sl} | {r.flags}"
-                 for r in out.head(30).itertuples()]
-        msg = f"Breakouts ({len(out)}):\n" + "\n".join(lines)
+        lines = []
+        for r in plans.head(20).itertuples():
+            if r.entry == "-":
+                lines.append(f"{r.status} | {r.symbol} | no plan | {r.flags}")
+            else:
+                lines.append(
+                    f"{r.status} | {r.symbol} | BUY above {r.entry} | SL {r.sl} "
+                    f"| Qty {r.qty} | T1 {r.t1} | skip if open > {r.skip_above}"
+                    f" | {r.flags}")
+        watch = int((out["status"] == "WATCH").sum())
+        msg = (f"Trade plans ({len(plans)}), WATCH {watch}:\n"
+               + "\n".join(lines))
     requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
                   data={"chat_id": chat, "text": msg}, timeout=30)
