@@ -3,7 +3,7 @@ import re
 import pandas as pd
 
 FOLDER = "mwpl_data"
-MIN_CHG = 2.0        # rise in MWPL usage (percentage points) needed each day
+MIN_CHG = 1.0        # rise in MWPL usage (percentage points) needed each day
                      # the video uses 5, but that is rare, so test with 2 first
 DAYS = 2             # consecutive days
 
