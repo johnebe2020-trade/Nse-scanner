@@ -1,14 +1,17 @@
-**4of4 Scan 03-Nov-26 02:00 IST | ACTIVE 1 | EXIT 2 | WATCH 4 | ERR 28 | scanned 350**
+**4of4 Scan 03-Nov-26 23:32 IST | ACTIVE 3 | EXIT 0 | WATCH 7 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| ACTIVE | PPLPHARMA | HEALTH CARE | 73.2 | 238.91 | 30-Oct-26 | 4/4 OK |
-| EXIT | BSOFT | IT | 59.4 | 323.00 | 30-Oct-26 | FAIL RSI R1 BB |
-| EXIT | MANAKCOAT | METAL | 61.0 | 140.21 | 30-Oct-26 | FAIL RSI R1 BB |
-| WATCH | ATHERENERG | AUTO | 69.8 | 1756.00 | - | 3/4 NEED RSI +0.2pt |
-| WATCH | ETERNAL | HEALTH CARE | 62.2 | 343.65 | - | 3/4 NEED RSI +7.8pt |
-| WATCH | POWERGRID | ENERGY | 62.4 | 265.00 | - | 3/4 NEED RSI +7.6pt |
-| WATCH | SMSPHARMA | HEALTH CARE | 69.1 | 511.35 | - | 3/4 NEED RSI +0.9pt |
+| ACTIVE | FDC | HEALTH CARE | 71.8 | 388.60 | 03-Nov-26 | 4/4 OK |
+| ACTIVE | TANLA | IT | 78.5 | 662.05 | 03-Nov-26 | 4/4 OK |
+| ACTIVE | WELSPUNLIV | AUTO | 71.6 | 253.09 | 03-Nov-26 | 4/4 OK |
+| WATCH | AARTIDRUGS | HEALTH CARE | 67.5 | 466.30 | - | 3/4 NEED RSI +2.5pt |
+| WATCH | ATHERENERG | AUTO | 71.8 | 1795.00 | - | 3/4 NEED R1 +0.2% |
+| WATCH | ETERNAL | HEALTH CARE | 65.0 | 349.45 | - | 3/4 NEED RSI +5.0pt |
+| WATCH | GROWW | BANK | 65.3 | 205.98 | - | 3/4 NEED RSI +4.7pt |
+| WATCH | HALDER | FMCG | 64.3 | 284.45 | - | 3/4 NEED RSI +5.7pt |
+| WATCH | ITC | FMCG | 62.3 | 273.90 | - | 3/4 NEED RSI +7.7pt |
+| WATCH | MINDACORP | AUTO | 60.5 | 684.60 | - | 3/4 NEED RSI +9.5pt |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
