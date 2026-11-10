@@ -1,4 +1,4 @@
-**4of4 Scan 10-Nov-26 02:35 IST | ACTIVE 10 | EXIT 0 | WATCH 22 | ERR 28 | scanned 350**
+**4of4 Scan 10-Nov-26 23:45 IST | ACTIVE 10 | EXIT 0 | WATCH 25 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
@@ -23,14 +23,17 @@
 | WATCH | DCAL | HEALTH CARE | 65.0 | 167.10 | - | 3/4 NEED RSI +5.0pt |
 | WATCH | EMAMILTD | FMCG | 68.9 | 410.40 | - | 3/4 NEED RSI +1.1pt |
 | WATCH | FDC | HEALTH CARE | 73.1 | 394.20 | - | 3/4 NEED BB +2.7% |
+| WATCH | GOLDSTAR | ENERGY | 67.4 | 11.50 | - | 3/4 NEED RSI +2.6pt |
 | WATCH | GREENPOWER | ENERGY | 64.2 | 9.44 | - | 3/4 NEED RSI +5.8pt |
 | WATCH | GROWW | BANK | 68.9 | 222.02 | - | 3/4 NEED RSI +1.1pt |
 | WATCH | HONASA | FMCG | 60.5 | 484.05 | - | 3/4 NEED RSI +9.5pt |
+| WATCH | INDIGRID | ENERGY | 61.1 | 172.55 | - | 3/4 NEED RSI +8.9pt |
 | WATCH | IRFC | BANK | 65.9 | 83.50 | - | 3/4 NEED RSI +4.1pt |
 | WATCH | PPLPHARMA | HEALTH CARE | 73.1 | 246.37 | - | 3/4 NEED BB +4.3% |
 | WATCH | ROLEXRINGS | AUTO | 69.3 | 207.72 | - | 3/4 NEED RSI +0.7pt |
 | WATCH | SONATSOFTW | IT | 59.6 | 256.07 | - | 3/4 NEED RSI +10.4pt |
 | WATCH | SPARC | HEALTH CARE | 66.7 | 210.80 | - | 3/4 NEED RSI +3.3pt |
+| WATCH | SYSTANGO | IT | 62.5 | 229.30 | - | 3/4 NEED RSI +7.5pt |
 | WATCH | TIIL | ENERGY | 58.4 | 2823.10 | - | 3/4 NEED RSI +11.6pt |
 | WATCH | VAML | METAL | 55.5 | 387.45 | - | 3/4 NEED RSI +14.5pt |
 | WATCH | VRAJ | METAL | 63.2 | 130.91 | - | 3/4 NEED RSI +6.8pt |
