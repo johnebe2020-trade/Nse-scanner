@@ -1,10 +1,11 @@
-**4of4 Scan 11-Nov-26 23:32 IST | ACTIVE 10 | EXIT 5 | WATCH 19 | ERR 28 | scanned 350**
+**4of4 Scan 13-Nov-26 00:05 IST | ACTIVE 11 | EXIT 5 | WATCH 16 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
 | ACTIVE | BAFNAPH | HEALTH CARE | 72.9 | 482.25 | 09-Nov-26 | 4/4 OK |
 | ACTIVE | BANKBARODA | BANK | 79.0 | 275.00 | 09-Nov-26 | 4/4 OK |
 | ACTIVE | DCAL | HEALTH CARE | 70.3 | 175.00 | 11-Nov-26 | 4/4 OK |
+| ACTIVE | GOLDSTAR | ENERGY | 70.0 | 11.90 | 11-Nov-26 | 4/4 OK |
 | ACTIVE | HALDER | FMCG | 75.7 | 321.80 | 09-Nov-26 | 4/4 OK |
 | ACTIVE | IRFC | BANK | 71.3 | 86.70 | 11-Nov-26 | 4/4 OK |
 | ACTIVE | MANCREDIT | AI | 74.5 | 264.78 | 11-Nov-26 | 4/4 OK |
@@ -22,15 +23,12 @@
 | WATCH | DPSCLTD | ENERGY | 66.3 | 6.92 | - | 3/4 NEED RSI +3.7pt |
 | WATCH | ELPROINTL | AI | 63.7 | 177.65 | - | 3/4 NEED RSI +6.3pt |
 | WATCH | FEDERALBNK | BANK | 67.6 | 361.60 | - | 3/4 NEED RSI +2.4pt |
-| WATCH | GOLDSTAR | ENERGY | 67.4 | 11.50 | - | 3/4 NEED RSI +2.6pt |
 | WATCH | IIFL | BANK | 66.3 | 666.25 | - | 3/4 NEED RSI +3.7pt |
-| WATCH | INDIGRID | ENERGY | 61.1 | 172.55 | - | 3/4 NEED RSI +8.9pt |
 | WATCH | ITC | FMCG | 67.1 | 285.00 | - | 3/4 NEED RSI +2.9pt |
 | WATCH | KARURVYSYA | BANK | 67.7 | 384.40 | - | 3/4 NEED RSI +2.3pt |
 | WATCH | LANDMARK | AUTO | 60.5 | 489.70 | - | 3/4 NEED RSI +9.5pt |
 | WATCH | MAHABANK | BANK | 67.9 | 90.20 | - | 3/4 NEED RSI +2.1pt |
 | WATCH | RKFORGE | AUTO | 63.8 | 764.70 | - | 3/4 NEED RSI +6.2pt |
-| WATCH | SYSTANGO | IT | 62.5 | 229.30 | - | 3/4 NEED RSI +7.5pt |
 | WATCH | TANLA | IT | 79.1 | 694.50 | - | 3/4 NEED BB +0.4% |
 | WATCH | TSFINV | BANK | 62.2 | 430.35 | - | 3/4 NEED RSI +7.8pt |
 | WATCH | UPL | METAL | 59.6 | 554.70 | - | 3/4 NEED RSI +10.4pt |
