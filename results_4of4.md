@@ -1,4 +1,4 @@
-**4of4 Scan 13-Nov-26 23:33 IST | ACTIVE 1 | EXIT 17 | WATCH 10 | ERR 28 | scanned 350**
+**4of4 Scan 17-Nov-26 02:10 IST | ACTIVE 1 | EXIT 16 | WATCH 9 | ERR 28 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
@@ -7,7 +7,6 @@
 | EXIT | AMANTA | HEALTH CARE | 72.3 | 234.47 | 13-Nov-26 | FAIL R1 |
 | EXIT | BAFNAPH | HEALTH CARE | 69.1 | 482.05 | 13-Nov-26 | FAIL RSI R1 BB |
 | EXIT | CUPID | FMCG | 69.2 | 377.80 | 13-Nov-26 | FAIL RSI R1 |
-| EXIT | GOLDSTAR | ENERGY | 62.6 | 11.35 | 12-Nov-26 | FAIL RSI R1 BB |
 | EXIT | GUFICBIO | HEALTH CARE | 65.5 | 473.05 | 13-Nov-26 | FAIL RSI R1 BB |
 | EXIT | HALDER | FMCG | 76.0 | 327.85 | 13-Nov-26 | FAIL R1 BB |
 | EXIT | HDFCLIFE | BANK | 71.2 | 592.25 | 13-Nov-26 | FAIL R1 |
@@ -22,7 +21,6 @@
 | EXIT | UNIONBANK | BANK | 73.1 | 203.00 | 13-Nov-26 | FAIL R1 BB |
 | WATCH | ANGELONE | BANK | 72.8 | 349.00 | - | 3/4 NEED BB +0.6% |
 | WATCH | ATHERENERG | AUTO | 75.1 | 1945.00 | - | 3/4 NEED BB +4.7% |
-| WATCH | COMPEAU | AUTO | 59.2 | 385.60 | - | 3/4 NEED RSI +10.8pt |
 | WATCH | GOODYEAR | AUTO | 63.3 | 717.00 | - | 3/4 NEED RSI +6.7pt |
 | WATCH | GROWW | BANK | 70.1 | 224.95 | - | 3/4 NEED BB +2.5% |
 | WATCH | HONASA | FMCG | 66.1 | 501.95 | - | 3/4 NEED RSI +3.9pt |
