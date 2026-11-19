@@ -1,24 +1,17 @@
-**4of4 Scan 19-Nov-26 00:32 IST | ACTIVE 5 | EXIT 4 | WATCH 8 | ERR 26 | scanned 350**
+**4of4 Scan 20-Nov-26 00:39 IST | ACTIVE 0 | EXIT 5 | WATCH 5 | ERR 26 | scanned 350**
 
 | Status | Symbol | Sector | RSI | Close | Date | Note |
 |---|---|---|---|---|---|---|
-| ACTIVE | BANKINDIA | BANK | 74.8 | 159.28 | 17-Nov-26 | 4/4 OK |
-| ACTIVE | HONASA | FMCG | 70.4 | 517.80 | 17-Nov-26 | 4/4 OK |
-| ACTIVE | MAHABANK | BANK | 75.3 | 95.99 | 17-Nov-26 | 4/4 OK |
-| ACTIVE | NRL | METAL | 79.2 | 190.96 | 17-Nov-26 | 4/4 OK |
-| ACTIVE | PNB | BANK | 85.5 | 150.00 | 17-Nov-26 | 4/4 OK |
-| EXIT | ABDL | FMCG | 72.4 | 791.65 | 17-Nov-26 | FAIL R1 |
-| EXIT | HDFCLIFE | BANK | 68.3 | 595.05 | 17-Nov-26 | FAIL RSI R1 BB |
-| EXIT | ITC | FMCG | 70.4 | 293.30 | 17-Nov-26 | FAIL R1 BB |
-| EXIT | MUKESHB | AI | 75.8 | 138.90 | 17-Nov-26 | FAIL R1 |
-| WATCH | BANKBARODA | BANK | 73.5 | 274.89 | - | 3/4 NEED BB +2.2% |
-| WATCH | CGVAK | IT | 60.8 | 148.72 | - | 3/4 NEED RSI +9.2pt |
-| WATCH | ETERNAL | HEALTH CARE | 72.8 | 375.05 | - | 3/4 NEED BB +2.7% |
-| WATCH | GROWW | BANK | 71.5 | 227.53 | - | 3/4 NEED BB +4.0% |
-| WATCH | IDFCFIRSTB | BANK | 65.5 | 83.59 | - | 3/4 NEED RSI +4.5pt |
-| WATCH | TATACHEM | CHEMICAL | 62.5 | 649.45 | - | 3/4 NEED RSI +7.5pt |
-| WATCH | TURTLEMINT | AI | 55.3 | 70.74 | - | 3/4 NEED RSI +14.7pt |
-| WATCH | UNIONBANK | BANK | 76.5 | 207.90 | - | 3/4 NEED BB +0.3% |
+| EXIT | BANKINDIA | BANK | 72.2 | 158.00 | 18-Nov-26 | FAIL R1 BB |
+| EXIT | HONASA | FMCG | 72.1 | 524.50 | 18-Nov-26 | FAIL R1 |
+| EXIT | MAHABANK | BANK | 75.3 | 96.00 | 18-Nov-26 | FAIL R1 BB |
+| EXIT | NRL | METAL | 81.7 | 196.84 | 18-Nov-26 | FAIL R1 |
+| EXIT | PNB | BANK | 84.3 | 149.57 | 18-Nov-26 | FAIL R1 BB |
+| WATCH | ABDL | FMCG | 73.4 | 798.05 | - | 3/4 NEED R1 +5.0% |
+| WATCH | FINEORG | CHEMICAL | 62.8 | 5519.00 | - | 3/4 NEED RSI +7.2pt |
+| WATCH | ITC | FMCG | 72.4 | 296.60 | - | 3/4 NEED BB +1.2% |
+| WATCH | MUKESHB | AI | 75.5 | 138.79 | - | 3/4 NEED R1 +1.5% |
+| WATCH | TURTLEMINT | AI | 55.9 | 71.16 | - | 3/4 NEED RSI +14.1pt |
 | ERR | AMBAAUTO | AUTO | - | - | - | E1 INVALID SYMBOL |
 | ERR | ANZEN | ENERGY/AI | - | - | - | E1 INVALID SYMBOL |
 | ERR | AVIENCE | HEALTH CARE | - | - | - | E1 INVALID SYMBOL |
