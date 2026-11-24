@@ -152,7 +152,7 @@ def main():
             continue
         peak = max(peak, p)
         if peak >= entry * (1 + TRAIL_START):
-            sl = max(sl, peak * (1 - TRAIL_PCT))
+            sl = max(sl, entry, peak * (1 - TRAIL_PCT))
         if p <= sl:
             reason = "SL / TRAIL"
             break
