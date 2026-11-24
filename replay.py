@@ -24,7 +24,7 @@ SLIPPAGE = 0.5         # rupees per share, each side
 CHARGES = 60           # rough flat cost per round trip
 ENTRY_CUTOFF = dt.time(14, 30)
 EXIT_TIME = dt.time(15, 15)
-TS_SHIFT_HOURS = 0     # fix if bar times look wrong, see notes
+TS_SHIFT_HOURS = 0     # fix if bar times look wrong
 
 DAY = os.getenv("REPLAY_DATE") or dt.datetime.now(IST).strftime("%Y-%m-%d")
 
@@ -171,10 +171,10 @@ def main():
             reason = "EOD EXIT"
             break
 
-        # 4) update peak and trailing SL
+        # 4) update peak and trailing SL (never below entry once trailing)
         peak = max(peak, b["h"])
         if peak >= entry * (1 + TRAIL_START):
-            sl = max(sl, peak * (1 - TRAIL_PCT))
+            sl = max(sl, entry, peak * (1 - TRAIL_PCT))
 
     if exit_px is None:
         exit_px, exit_t, reason = ob[-1]["c"], ob[-1]["t"], "DATA END"
@@ -184,6 +184,9 @@ def main():
     print(f"EXIT  {exit_t.strftime('%H:%M')}  @ {exit_px:.2f}  [{reason}]")
     print(f"Peak premium {peak:.2f}")
     print(f"NET PnL: Rs {pnl:.0f}  ({pnl / CAPITAL * 100:.2f}% of capital)")
+
+    last = ob[-1]["c"] - SLIPPAGE
+    print(f"What-if hold to close: Rs {(last - entry) * qty - CHARGES:.0f}")
 
 
 if __name__ == "__main__":
