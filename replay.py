@@ -1,12 +1,21 @@
 import os, csv, io, sys, datetime as dt
 from zoneinfo import ZoneInfo
 import requests
-from dhanhq import dhanhq
+
+try:
+    from dhanhq import DhanContext, dhanhq   # newer library
+    _ctx = DhanContext(os.environ["DHAN_CLIENT_ID"],
+                       os.environ["DHAN_TOKEN"])
+    dhan = dhanhq(_ctx)
+except ImportError:                           # older library
+    from dhanhq import dhanhq
+    dhan = dhanhq(os.environ["DHAN_CLIENT_ID"],
+                  os.environ["DHAN_TOKEN"])
 
 IST = ZoneInfo("Asia/Kolkata")
 
 # ---------- CONFIG ----------
-CAPITAL = 50000
+CAPITAL = 100000
 MAX_LOTS = 1
 SL_PCT = 0.20          # initial SL on premium
 TRAIL_START = 0.10     # trail starts after +10%
@@ -18,7 +27,6 @@ EXIT_TIME = dt.time(15, 15)
 TS_SHIFT_HOURS = 0     # fix if bar times look wrong, see notes
 
 DAY = os.getenv("REPLAY_DATE") or dt.datetime.now(IST).strftime("%Y-%m-%d")
-dhan = dhanhq(os.environ["DHAN_CLIENT_ID"], os.environ["DHAN_TOKEN"])
 
 MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
 
