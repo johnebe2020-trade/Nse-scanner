@@ -1,0 +1,16 @@
+name: replay
+on:
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install dhanhq requests
+      - run: python replay.py
+        env:
+          REPLAY_DATE: "2026-11-23"
+          DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+          DHAN_TOKEN: ${{ secrets.DHAN_TOKEN }}
