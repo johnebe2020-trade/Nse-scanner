@@ -5,7 +5,7 @@ import pandas as pd
 import simple_backtest as sb
 
 # ---------- CONFIG ----------
-TARGET = ("R", 2.0)         # target rule used in this study
+TARGET = ("R", 0.5)         # target rule used in this study
 MIN_N_HALF = 100            # trades needed in EACH half for HOLDS = YES
 # Filters for the FILTERED run at the bottom. Leave empty for none.
 # Example: {"nifty": "UP", "slope": "RISING", "fresh": "FRESH"}
