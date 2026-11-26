@@ -519,4 +519,98 @@ def process_day(bk, day, data_S, seed_only=False):
             continue
         q = size_qty(pl["entry"], pl["t1"], pl["status"])
         if q < 1:
-            bk.log(day, "EOD", "SIGNAL_QTY0", sym,
+            bk.log(day, "EOD", "SIGNAL_QTY0", sym, pl["entry"], 0, "")
+            continue
+        new_orders.append(dict(
+            symbol=sym, signal_date=fmt(day), setup=pl["status"],
+            flags=" ".join(pl["flags"]) if pl["flags"] else "-",
+            entry=pl["entry"], sl=pl["sl"], t1=pl["t1"], t2=pl["t2"],
+            skip_above=pl["skip"], risk_pct=pl["risk_pct"],
+            vol_x=round(pl["vol_x"], 2), qty=q))
+        bk.log(day, "EOD", "ORDER_PLACED", sym, pl["entry"], q,
+               f"{pl['status']} buy above {pl['entry']} SL {pl['sl']} "
+               f"T1 {pl['t1']} T2 {pl['t2']} skip>{pl['skip']}")
+    bk.pending = new_orders
+    # ---- account line ----
+    mv = 0.0
+    cost_basis = 0.0
+    for p in bk.positions:
+        S = data_S.get(p["symbol"])
+        i = idx_of(S, day) if S else None
+        px = S["c"][i] if i is not None else p["fill"]
+        rem = p["qty"] - (p["q1"] if p["half"] else 0)
+        mv += rem * px
+        cost_basis += rem * p["fill"]
+    realized = sum(_num(t["net_pnl"]) for t in bk.trades)
+    bk.account.append(dict(
+        date=fmt(day), cash=round(bk.cash, 2),
+        invested_at_cost=round(cost_basis, 2),
+        open_positions=len(bk.positions), market_value=round(mv, 2),
+        equity=round(bk.cash + mv, 2),
+        realized_pnl_total=round(realized, 2),
+        closed_trades=len(bk.trades), pending_orders=len(bk.pending)))
+    bk.last_date = day
+    bk.cash = float(bk.account[-1]["cash"])
+
+
+# ================= RUN =================
+def run_engine(data, now):
+    """data: {symbol: daily OHLCV frame with COMPLETE candles only}."""
+    bk = Book()
+    bk.now = now
+    data_S = {s: prep_sig(d) for s, d in data.items() if len(d) >= 90}
+    all_days = sorted(set().union(*[set(S["dates"]) for S in data_S.values()]))
+    start = pd.Timestamp(START_DATE)
+    if bk.last_date is None:
+        prev = [d for d in all_days if d < start]
+        if prev:
+            process_day(bk, prev[-1], data_S, seed_only=True)
+            print(f"Seeded orders from the {prev[-1]:%d-%b-%Y} close")
+        else:
+            print("No candle before START_DATE; nothing to seed.")
+            return bk
+    todo = [d for d in all_days if d > bk.last_date and d >= start]
+    if not todo:
+        print("No new completed trading day to process.")
+    for day in todo:
+        process_day(bk, day, data_S)
+        a = bk.account[-1]
+        print(f"{day:%d-%b-%Y}: equity {a['equity']:,.0f} cash "
+              f"{a['cash']:,.0f} open {a['open_positions']} closed "
+              f"{a['closed_trades']} orders for next session "
+              f"{a['pending_orders']}")
+    bk.save()
+    return bk
+
+
+def last_complete_date(now):
+    today = pd.Timestamp(now.date())
+    return today if now.hour * 60 + now.minute >= 16 * 60 + 15 \
+        else today - pd.Timedelta(days=1)
+
+
+def main():
+    ist = datetime.now(timezone(timedelta(hours=5, minutes=30))).replace(tzinfo=None)
+    lcd = last_complete_date(ist)
+    df = pd.read_csv(FILE)
+    df.columns = df.columns.str.strip()
+    df = df[df["SERIES"].str.strip() == "EQ"]
+    symbols = df["SYMBOL"].str.strip().str.upper().tolist()
+    data = download_all(symbols)
+    data = {s: d[d.index <= lcd] for s, d in data.items()}
+    data = {s: d for s, d in data.items() if len(d) >= 120}
+    print(f"Price data for {len(data)} symbols, last complete day "
+          f"{lcd:%d-%b-%Y}", flush=True)
+    if not data:
+        sys.exit("No data downloaded.")
+    bk = run_engine(data, ist)
+    t = pd.DataFrame(bk.trades)
+    if len(t):
+        net = t["net_pnl"].astype(float)
+        print(f"\nClosed trades {len(t)}, win {100 * (net > 0).mean():.0f}%, "
+              f"net P&L Rs {net.sum():,.0f}")
+    print(f"Open positions: {len(bk.positions)}")
+
+
+if __name__ == "__main__":
+    main()
