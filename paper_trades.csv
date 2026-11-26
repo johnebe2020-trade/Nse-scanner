@@ -1,0 +1,1 @@
+trade_id,symbol,setup,flags,signal_date,entry_date,entry_time,entry_price,qty,invested,stop_loss,target1,target2,leg1_date,leg1_time,leg1_qty,leg1_price,exit_date,exit_time,exit_qty,exit_price,exit_reason,days_held,gross_pnl,costs,net_pnl,net_pct,r_multiple,cash_after
