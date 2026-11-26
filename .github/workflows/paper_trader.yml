@@ -1,0 +1,33 @@
+name: Paper Trader
+on:
+  schedule:
+    - cron: "45 10 * * 1-5"   # 4:15 PM IST, Monday to Friday
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: paper-trader
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy yfinance
+      - run: python paper_trader.py
+      - name: Save results
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add paper_*.csv
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "paper trader update"
+            git pull --rebase
+            git push
+          fi
