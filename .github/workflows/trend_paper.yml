@@ -1,0 +1,46 @@
+name: TrendTwin Dhan Paper Trader
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekdays at 09:15 India time (UTC 03:45). GitHub scheduled runs can start late.
+    - cron: "45 3 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trend-twin-paper-trader
+  cancel-in-progress: false
+
+jobs:
+  paper-trading:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas
+
+      - name: Run paper trader (paper orders only)
+        env:
+          DHAN_CLIENT_ID: ${{ secrets.DHAN_CLIENT_ID }}
+          DHAN_ACCESS_TOKEN: ${{ secrets.DHAN_ACCESS_TOKEN }}
+          POLL_SECONDS: "15"
+        run: python trend_twin_paper.py
+
+      - name: Commit paper logs
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add paper_logs
+          git diff --cached --quiet || git commit -m "Update TrendTwin paper trading logs"
+          git push
